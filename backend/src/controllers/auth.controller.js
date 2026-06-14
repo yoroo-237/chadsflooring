@@ -51,7 +51,9 @@ async function register(req, res) {
 async function login(req, res) {
   const { username, password } = req.body;
 
-  const user = await prisma.user.findUnique({ where: { username } });
+  const user = await prisma.user.findFirst({
+    where: { username: { equals: username, mode: 'insensitive' } },
+  });
   if (!user) {
     return error(res, 'Invalid credentials.', 401);
   }

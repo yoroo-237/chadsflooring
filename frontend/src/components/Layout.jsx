@@ -6,6 +6,7 @@ import CartDrawer from './CartDrawer';
 import SupportWidget from './SupportWidget';
 import QuickAddModal from './QuickAddModal';
 import { useApp } from '../context/AppContext';
+import { api } from '../utils/api';
 
 const TOUR_STEPS = [
   { title: 'Welcome to the Shop', desc: 'Browse hundreds of products across multiple categories. Use the tabs above to explore.' },
@@ -28,12 +29,16 @@ function XIcon() {
 }
 
 export default function Layout() {
-  const { cartItems, removeFromCart, theme, setTheme, showToast, toasts } = useApp();
+  const { cartItems, removeFromCart, theme, setTheme, showToast, toasts, user, setUser } = useApp();
   const [cartOpen, setCartOpen] = useState(false);
-  const [tourVisible, setTourVisible] = useState(true);
-  const [tourStep, setTourStep] = useState(3);
+  const [tourStep, setTourStep] = useState(1);
   const navigate = useNavigate();
   const location = useLocation();
+
+  const completeTour = () => {
+    api.patch('/profile/tour-complete').catch(() => {});
+    setUser(prev => ({ ...prev, tourCompleted: true }));
+  };
 
   const { search, setSearch } = useApp();
 
@@ -76,11 +81,11 @@ export default function Layout() {
         onDeposit={() => { setCartOpen(false); navigate('/wallet'); }}
       />
 
-      {/* Tour — only on shop page */}
-      {tourVisible && isShopPage && (
+      {/* Tour — only for new users (tourCompleted === false) on the shop page */}
+      {user && user.tourCompleted === false && isShopPage && (
         <div className="tour-popup">
           <div className="tour-close-wrap">
-            <button className="tour-close" onClick={() => setTourVisible(false)}><XIcon /></button>
+            <button className="tour-close" onClick={completeTour}><XIcon /></button>
           </div>
           <div className="tour-body">
             <div className="tour-title">{currentStep.title}</div>
@@ -97,7 +102,7 @@ export default function Layout() {
                 </button>
                 <button className="tour-btn-next" onClick={() => {
                   if (tourStep < TOUR_STEPS.length) setTourStep(s => s + 1);
-                  else setTourVisible(false);
+                  else completeTour();
                 }}>
                   {tourStep < TOUR_STEPS.length ? 'Next' : 'Done'}
                 </button>

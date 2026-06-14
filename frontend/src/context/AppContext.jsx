@@ -40,26 +40,42 @@ export function AppProvider({ children }) {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Load user profile + balance + categories on mount
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) { setLoadingAuth(false); return; }
-
-    Promise.all([
+  const loadUserData = useCallback(async () => {
+    const [profileData, walletData, catsData, settingsData] = await Promise.all([
       api.get('/profile').catch(() => null),
       api.get('/wallet/balance').catch(() => null),
       api.get('/categories').catch(() => null),
       api.get('/settings/public').catch(() => null),
-    ]).then(([profileData, walletData, catsData, settingsData]) => {
-      // Backend may nest user under .user or return it directly
-      if (profileData) setUser(profileData.user || profileData);
-      if (walletData?.balance != null) setBalance(Number(walletData.balance));
-      // Categories may be array directly or { categories: [...] }
-      const cats = catsData?.categories ?? (Array.isArray(catsData) ? catsData : null);
-      if (cats) setCategories(cats);
-      const sett = settingsData?.settings ?? settingsData;
-      if (sett && typeof sett === 'object') setSettings(sett);
-    }).finally(() => setLoadingAuth(false));
+    ]);
+    if (profileData) setUser(profileData.user || profileData);
+    if (walletData?.balance != null) setBalance(Number(walletData.balance));
+    const cats = catsData?.categories ?? (Array.isArray(catsData) ? catsData : null);
+    if (cats) setCategories(cats);
+    const sett = settingsData?.settings ?? settingsData;
+    if (sett && typeof sett === 'object') setSettings(sett);
+  }, []);
+
+  const login = useCallback(async (username, password) => {
+    const base = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+    const res = await fetch(`${base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Login failed');
+    localStorage.setItem('token', data.data.token);
+    if (data.data.refreshToken) localStorage.setItem('refreshToken', data.data.refreshToken);
+    setUser(data.data.user);
+    await loadUserData();
+    return data.data;
+  }, [loadUserData]);
+
+  // Load user profile + balance + categories on mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) { setLoadingAuth(false); return; }
+    loadUserData().finally(() => setLoadingAuth(false));
   }, []);
 
   const showToast = useCallback((msg, type = '') => {
@@ -172,6 +188,7 @@ export function AppProvider({ children }) {
       settings,
       activeCategory, setActiveCategory,
       loadingAuth,
+      login, loadUserData,
       logout,
       normalizeProduct,
     }}>

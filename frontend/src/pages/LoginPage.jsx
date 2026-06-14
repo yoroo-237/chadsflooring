@@ -1,115 +1,127 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom';
-import { apiCall } from '../utils/api';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
 
 export default function LoginPage() {
-  const navigate  = useNavigate();
-  const location  = useLocation();
-  const from      = location.state?.from?.pathname || '/';
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from?.pathname || '/';
+  const { login } = useApp();
 
   if (localStorage.getItem('token')) return <Navigate to={from} replace />;
-  const [tab, setTab]             = useState('login');
-  const [form, setForm]           = useState({ username: '', password: '' });
-  const [errors, setErrors]       = useState({});
-  const [loading, setLoading]     = useState(false);
-  const [serverErr, setServerErr] = useState('');
 
-  const set = (k, v) => {
-    setForm(f => ({ ...f, [k]: v }));
-    if (errors[k]) setErrors(e => ({ ...e, [k]: '' }));
-    setServerErr('');
-  };
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [errors, setErrors]   = useState({});
+  const [loading, setLoading] = useState(false);
+  const [serverErr, setServerErr] = useState('');
 
   const validate = () => {
     const e = {};
-    if (!form.username.trim()) e.username = 'Username required';
-    if (!form.password || form.password.length < 6) e.password = 'Password must be at least 6 characters';
+    if (!username.trim()) e.username = 'Username required';
+    if (!password || password.length < 6) e.password = 'Min 6 characters';
     return e;
   };
 
-  const submit = async (e) => {
-    e.preventDefault();
+  const submit = async (ev) => {
+    ev.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setLoading(true); setServerErr('');
     try {
-      const endpoint = tab === 'login' ? '/auth/login' : '/auth/register';
-      const body = { username: form.username, password: form.password };
-      const data = await apiCall(endpoint, { method: 'POST', body });
-      if (data.token || data.accessToken) {
-        localStorage.setItem('token', data.token || data.accessToken);
-        if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
-        navigate(from, { replace: true });
-      } else {
-        setServerErr(data.error || data.message || 'Login failed');
-      }
+      await login(username, password);
+      navigate(from, { replace: true });
     } catch (err) {
-      setServerErr(err.message || 'Something went wrong');
+      setServerErr(err.message || 'Invalid username or password');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="main-content">
-      <div className="page-container" style={{ maxWidth: 420, margin: '60px auto' }}>
-        <div className="admin-card" style={{ padding: 32 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24, textAlign: 'center' }}>
-            {tab === 'login' ? 'Sign In' : 'Create Account'}
-          </h1>
+    <div className="login-page">
+      <div className="login-card">
 
-          <div style={{ display: 'flex', gap: 0, marginBottom: 24, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
-            {['login', 'register'].map(t => (
-              <button key={t} onClick={() => { setTab(t); setErrors({}); setServerErr(''); }} style={{
-                flex: 1, padding: '10px 0', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14,
-                background: tab === t ? 'var(--accent)' : 'transparent',
-                color: tab === t ? '#fff' : 'var(--text-muted)',
-              }}>
-                {t === 'login' ? 'Sign In' : 'Register'}
-              </button>
-            ))}
-          </div>
-
-          {serverErr && (
-            <div style={{ background: 'rgba(229,57,53,.1)', color: '#e53935', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 14 }}>
-              {serverErr}
-            </div>
-          )}
-
-          <form onSubmit={submit}>
-            <div className="form-group" style={{ marginBottom: 16 }}>
-              <label className="form-label">Username</label>
-              <input
-                className={`form-input${errors.username ? ' error' : ''}`}
-                value={form.username}
-                onChange={e => set('username', e.target.value)}
-                placeholder="yourname"
-                autoComplete="username"
-              />
-              {errors.username && <span className="form-error">{errors.username}</span>}
-            </div>
-            <div className="form-group" style={{ marginBottom: 24 }}>
-              <label className="form-label">Password</label>
-              <input
-                className={`form-input${errors.password ? ' error' : ''}`}
-                type="password"
-                value={form.password}
-                onChange={e => set('password', e.target.value)}
-                placeholder="••••••••"
-                autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
-              />
-              {errors.password && <span className="form-error">{errors.password}</span>}
-            </div>
-            <button type="submit" className="btn-primary" style={{ width: '100%' }} disabled={loading}>
-              {loading ? 'Please wait…' : tab === 'login' ? 'Sign In' : 'Create Account'}
-            </button>
-          </form>
-
-          <div style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: 'var(--text-muted)' }}>
-            <Link to="/" style={{ color: 'var(--accent)' }}>Continue as guest →</Link>
-          </div>
+        {/* Logo */}
+        <div className="login-logo">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2.5" aria-hidden="true">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+          <span className="login-logo-text">Canna Express</span>
         </div>
+
+        <h1 className="login-title">Welcome back</h1>
+        <p className="login-subtitle">Sign in to your account to continue</p>
+
+        {serverErr && (
+          <div className="login-error" role="alert">{serverErr}</div>
+        )}
+
+        <form onSubmit={submit} className="login-form" noValidate>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="login-username">Username</label>
+            <input
+              id="login-username"
+              className={`form-input${errors.username ? ' error' : ''}`}
+              value={username}
+              onChange={e => { setUsername(e.target.value); setErrors(p => ({...p, username: ''})); setServerErr(''); }}
+              placeholder="yourname"
+              autoComplete="username"
+              autoFocus
+            />
+            {errors.username && <span className="form-error">{errors.username}</span>}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="login-password">Password</label>
+            <div className="pw-input-wrap">
+              <input
+                id="login-password"
+                className={`form-input${errors.password ? ' error' : ''}`}
+                type={showPw ? 'text' : 'password'}
+                value={password}
+                onChange={e => { setPassword(e.target.value); setErrors(p => ({...p, password: ''})); setServerErr(''); }}
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                className="pw-eye-btn"
+                onClick={() => setShowPw(p => !p)}
+                aria-label={showPw ? 'Hide password' : 'Show password'}
+              >
+                {showPw ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
+              </button>
+            </div>
+            {errors.password && <span className="form-error">{errors.password}</span>}
+          </div>
+
+          <button
+            type="submit"
+            className="btn-primary login-submit"
+            disabled={loading}
+          >
+            {loading ? 'Signing in…' : 'Login'}
+          </button>
+
+        </form>
+
       </div>
-    </main>
+    </div>
   );
 }
