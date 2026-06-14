@@ -294,6 +294,7 @@ ul, ol { list-style: none; }
   background: #1f1f1f;
   box-shadow: 0 2px 8px rgba(0,0,0,0.5);
   height: var(--nav-height);
+  overflow: hidden;
 }
 .header-inner {
   display: flex;
@@ -1636,7 +1637,7 @@ ul, ol { list-style: none; }
    CATEGORY NAV — blue gradient bar (shop / explore)
    ===================================================== */
 .catnav { background:linear-gradient(90deg, #16244a 0%, #1c63b0 60%, #1f7fd4 100%); position:sticky; top:var(--nav-height); z-index:190; }
-.catnav-inner { display:flex; align-items:center; justify-content:space-between; gap:6px; height:56px; max-width:1399px; margin:0 auto; padding:0 28px; overflow-x:auto; scrollbar-width:none; }
+.catnav-inner { display:flex; align-items:center; justify-content:flex-start; gap:6px; height:56px; max-width:1399px; margin:0 auto; padding:0 28px; overflow-x:auto; scrollbar-width:none; }
 .catnav-inner::-webkit-scrollbar { display:none; }
 .catnav-tab { position:relative; background:none; border:none; color:#fff; font-family:var(--font); font-size:15px; font-weight:600; cursor:pointer; padding:8px 14px; border-radius:9px; white-space:nowrap; opacity:0.92; transition:opacity .15s, background .15s; flex-shrink:0; }
 .catnav-tab:hover { opacity:1; background:rgba(255,255,255,0.10); }
@@ -2008,6 +2009,7 @@ ul, ol { list-style: none; }
 }
 @media (max-width:900px) {
   .header-shipping { display:none; }
+  .header-divider { display:none; }
   .footer-inner { grid-template-columns:1fr; }
   .footer-cols { grid-template-columns:repeat(2, 1fr); }
   .product-detail { grid-template-columns:1fr; gap:24px; }
@@ -2031,7 +2033,8 @@ ul, ol { list-style: none; }
   .header-nav-tabs { display:none; }
 }
 @media (max-width:700px) {
-  .header-search { min-width:120px; }
+  .header-search { min-width:0; flex:1; }
+  .search-balance-chip { display:none; }
   .products-grid { grid-template-columns:repeat(auto-fill, minmax(165px, 1fr)); gap:10px; }
   .cart-drawer { width:100%; }
   .filter-panel { width:100%; }

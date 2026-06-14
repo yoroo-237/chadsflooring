@@ -81,25 +81,25 @@ export default function App() {
           {/* Login — outside main layout */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* Main storefront */}
-          <Route path="/" element={<Layout />}>
+          {/* Main storefront — ALL routes require auth */}
+          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<ShopPage />} />
             <Route path="explore" element={<ExplorePage />} />
             <Route path="product/:id" element={<ProductPage />} />
-            <Route path="checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+            <Route path="checkout" element={<CheckoutPage />} />
             <Route path="cart" element={<CartPage />} />
-            <Route path="orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
-            <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-            <Route path="support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
+            <Route path="orders" element={<OrdersPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="support" element={<SupportPage />} />
             <Route path="faq" element={<FaqPage />} />
             <Route path="shipping-policy" element={<ShippingPolicyPage />} />
             <Route path="news" element={<NewsPage />} />
             <Route path="giveaway" element={<GiveawayPage />} />
             <Route path="system-status" element={<SystemStatusPage />} />
-            <Route path="settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-            <Route path="rewards" element={<ProtectedRoute><RewardsPage /></ProtectedRoute>} />
-            <Route path="wallet" element={<ProtectedRoute><WalletPage /></ProtectedRoute>} />
-            <Route path="team" element={<ProtectedRoute><TeamPage /></ProtectedRoute>} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="rewards" element={<RewardsPage />} />
+            <Route path="wallet" element={<WalletPage />} />
+            <Route path="team" element={<TeamPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
