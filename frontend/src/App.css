@@ -1844,9 +1844,87 @@ ul, ol { list-style: none; }
 .supw-send-btn:hover { opacity:0.92; }
 
 /* ===========================================================
-   PATCH CSS — à ajouter à ton fichier de styles existant
-   (par ex. login.css)
+   LOGIN PAGE
    =========================================================== */
+
+.login-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: #141414;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: #1e1e1e;
+  border: 1px solid #2e2e2e;
+  border-radius: 18px;
+  padding: 40px 36px 36px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+}
+
+.login-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+.login-logo-text {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.02em;
+  font-family: var(--font);
+}
+
+.login-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+  margin: 0 0 6px;
+}
+.login-subtitle {
+  font-size: 14px;
+  color: #808080;
+  text-align: center;
+  margin: 0 0 28px;
+}
+
+.login-error {
+  background: rgba(229,57,53,.12);
+  border: 1px solid rgba(229,57,53,.3);
+  color: #ef5350;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 18px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.login-form .form-group {
+  margin-bottom: 16px;
+}
+
+.login-submit {
+  width: 100%;
+  margin-top: 8px;
+  min-height: 44px;
+  font-size: 15px;
+}
+
+@media (max-width: 480px) {
+  .login-card { padding: 28px 20px 24px; border-radius: 14px; }
+}
 
 /* --- Titre "Welcome to our new platform" (version grisée) --- */
 .login-title-muted {
