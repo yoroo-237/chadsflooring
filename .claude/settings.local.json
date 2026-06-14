@@ -56,7 +56,13 @@
       "Bash(python -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(data[0]['text'][:30000]\\)\")",
       "Bash(npx react-scripts *)",
       "Bash(node -e \"require\\('axios'\\); console.log\\('axios ok'\\)\")",
-      "Bash(node -e \"require\\('qrcode.react'\\); console.log\\('qrcode.react ok'\\)\")"
+      "Bash(node -e \"require\\('qrcode.react'\\); console.log\\('qrcode.react ok'\\)\")",
+      "Bash(python3 \"C:\\\\Users\\\\Miguel\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"e-commerce cannabis dark mode responsive mobile\" --design-system -p \"Canna Express\")",
+      "PowerShell(python3 \"C:\\\\Users\\\\Miguel\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"e-commerce cannabis dark mode responsive mobile\" --design-system -p \"Canna Express\" 2>&1)",
+      "PowerShell(python \"C:\\\\Users\\\\Miguel\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"e-commerce cannabis dark mode responsive mobile\" --design-system -p \"Canna Express\" 2>&1)",
+      "PowerShell(python \"C:\\\\Users\\\\Miguel\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"responsive layout mobile tablet\" --domain ux 2>&1)",
+      "PowerShell(python \"C:\\\\Users\\\\Miguel\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"touch accessibility mobile\" --domain ux 2>&1)",
+      "PowerShell(python \"C:\\\\Users\\\\Miguel\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"responsive mobile\" --stack react 2>&1)"
     ]
   }
 }
