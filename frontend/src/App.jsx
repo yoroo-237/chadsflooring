@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './App.css';
 import { AppProvider } from './context/AppContext';
@@ -25,7 +25,6 @@ import TeamPage from './pages/TeamPage';
 import LoginPage from './pages/LoginPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
-import AgeGate from './components/AgeGate';
 import { AdminRoute } from './components/admin/AdminRoute';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -50,19 +49,6 @@ import AdminSettings from './pages/admin/AdminSettings';
 import AdminSystemStatus from './pages/admin/AdminSystemStatus';
 
 export default function App() {
-  const [ageVerified, setAgeVerified] = useState(
-    () => localStorage.getItem('ageVerified') === 'true'
-  );
-
-  if (!ageVerified) {
-    return (
-      <AgeGate
-        onYes={() => { localStorage.setItem('ageVerified', 'true'); setAgeVerified(true); }}
-        onNo={() => { window.location.href = 'https://www.google.com'; }}
-      />
-    );
-  }
-
   return (
     <BrowserRouter>
       <AppProvider>

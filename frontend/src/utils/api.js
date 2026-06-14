@@ -1,4 +1,7 @@
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:4000'}/api`;
+// Strip any trailing /api from env var before appending, so both
+// "https://api.example.com" and "https://api.example.com/api" work.
+const _apiRoot = (process.env.REACT_APP_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '');
+const API_BASE = `${_apiRoot}/api`;
 
 export { API_BASE };
 
@@ -47,13 +50,20 @@ export async function apiCall(endpoint, options = {}) {
   });
 
   if (res.status === 401) {
-    try {
-      await refreshAccessToken();
-      return apiCall(endpoint, options);
-    } catch {
-      logout();
-      throw new Error('Session expired');
+    // Only attempt refresh + redirect if the user actually had a token.
+    // Without this guard, public-page API calls that return 401 would
+    // incorrectly kick unauthenticated users to /login.
+    const hadToken = !!getToken();
+    if (hadToken) {
+      try {
+        await refreshAccessToken();
+        return apiCall(endpoint, options);
+      } catch {
+        logout();
+        throw new Error('Session expired');
+      }
     }
+    throw new Error('Authentication required');
   }
 
   const json = await res.json();

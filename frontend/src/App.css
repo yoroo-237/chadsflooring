@@ -1842,157 +1842,158 @@ ul, ol { list-style: none; }
 .supw-send-btn { flex:1; height:44px; border:none; border-radius:10px; background:linear-gradient(236deg, #0171E3 0%, #032940 100%); color:#fff; font-family:var(--font); font-size:15px; font-weight:700; cursor:pointer; transition:opacity .15s; }
 .supw-send-btn:hover { opacity:0.92; }
 
-/* =====================================================
-   LOGIN PAGE
-   ===================================================== */
-.login-page {
-  min-height: 100vh;
-  background: #181818;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
+/* ===========================================================
+   PATCH CSS — à ajouter à ton fichier de styles existant
+   (par ex. login.css)
+   =========================================================== */
 
-.login-card {
-  width: 100%;
-  max-width: 440px;
-  background: #2a2a2a;
-  border-radius: 16px;
-  padding: 40px 36px 36px;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.45);
-}
-
-.login-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 28px;
-  justify-content: center;
-}
-
-.login-logo-text {
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--primary);
-  letter-spacing: 0.02em;
-  font-family: var(--font);
-}
-
-.login-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: #fff;
+/* --- Titre "Welcome to our new platform" (version grisée) --- */
+.login-title-muted {
+  font-size: 1.1rem;
+  font-weight: 600;
   text-align: center;
-  margin-bottom: 6px;
+  color: var(--text-muted, #9a9a9a);
+  margin: 0 0 24px 0;
 }
 
-.login-subtitle {
-  font-size: 14px;
-  color: #808080;
-  text-align: center;
-  margin-bottom: 28px;
+/* --- Séparateur entre password et section 2FA --- */
+.login-divider {
+  border: none;
+  border-top: 1px solid var(--border, #3a3a3a);
+  margin: 20px 0 16px 0;
 }
 
-.login-error {
-  background: rgba(229,57,53,.12);
-  border: 1px solid rgba(229,57,53,.3);
-  color: #e53935;
-  border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 20px;
-  font-size: 14px;
+/* --- Texte d'info au-dessus du champ 2FA --- */
+.login-2fa-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted, #9a9a9a);
+  margin: 0 0 16px 0;
+  line-height: 1.4;
+}
+
+/* --- Conteneur du bouton "Use Recovery Code" --- */
+.login-recovery-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0 20px 0;
+}
+
+/* --- Bouton "Use Recovery Code" (pilule grise) --- */
+.btn-recovery {
+  background: var(--surface-2, #3a3a3a);
+  color: var(--text, #e5e5e5);
+  border: none;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 0.85rem;
   font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
 }
 
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+.btn-recovery:hover {
+  background: var(--surface-3, #4a4a4a);
 }
 
-.login-submit {
-  width: 100%;
-  padding: 14px;
-  font-size: 15px;
-  margin-top: 4px;
-  min-height: 44px;
-}
 
-@media (max-width: 480px) {
-  .login-card {
-    padding: 28px 20px 24px;
-  }
-  .login-title { font-size: 20px; }
-}
+/* ===========================================================
+   AGE GATE — overlay plein écran + carte
+   =========================================================== */
 
-/* =====================================================
-   AGE GATE
-   ===================================================== */
 .age-gate-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.75);
+  background: rgba(0, 0, 0, 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
-  padding: 24px;
+  z-index: 1000;
+  padding: 16px;
 }
 
 .age-gate-card {
+  background: var(--surface, #5c5c5c);
+  border-radius: 16px;
+  max-width: 600px;
   width: 100%;
-  max-width: 560px;
-  background: #2e2e2e;
-  border-radius: 18px;
-  padding: 44px 40px 40px;
-  box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  padding: 40px 32px;
   text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
 .age-gate-title {
-  font-size: 28px;
-  font-weight: 800;
-  color: #fff;
-  margin-bottom: 10px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text, #f1f1f1);
+  margin: 0 0 12px 0;
 }
 
 .age-gate-desc {
-  font-size: 15px;
-  color: #9a9a9a;
-  margin-bottom: 32px;
-  line-height: 1.6;
+  font-size: 0.95rem;
+  color: var(--text-muted, #d8d8d8);
+  line-height: 1.5;
+  margin: 0 0 28px 0;
 }
 
 .age-gate-actions {
   display: flex;
   gap: 12px;
-  justify-content: center;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 .age-gate-btn {
-  padding: 14px 28px;
-  border-radius: 12px;
-  font-size: 15px;
-  font-weight: 700;
-  font-family: var(--font);
-  cursor: pointer;
-  border: none;
-  min-height: 44px;
+  flex: 1;
   min-width: 140px;
-  transition: opacity .15s, transform .15s;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.05s ease;
 }
-.age-gate-btn:hover { opacity: .9; transform: translateY(-1px); }
 
-.age-gate-btn--no   { background: #e53935; color: #fff; }
-.age-gate-btn--help { background: #3a3a3a; color: #ccc; }
-.age-gate-btn--yes  { background: var(--primary); color: #fff; }
+.age-gate-btn:active {
+  transform: scale(0.98);
+}
 
+.age-gate-btn--no {
+  background: var(--danger, #d9636c);
+  color: #fff;
+}
+
+.age-gate-btn--no:hover {
+  filter: brightness(1.08);
+}
+
+.age-gate-btn--yes {
+  background: var(--primary, #4361ee);
+  color: #fff;
+}
+
+.age-gate-btn--yes:hover {
+  filter: brightness(1.08);
+}
+
+/* --- Bouton "I Need Help" (optionnel, neutre) --- */
+.age-gate-btn--help {
+  background: var(--surface-2, #3a3a3a);
+  color: var(--text, #e5e5e5);
+}
+
+.age-gate-btn--help:hover {
+  filter: brightness(1.1);
+}
+
+/* --- Responsive : empile les boutons sur petit écran --- */
 @media (max-width: 480px) {
-  .age-gate-card { padding: 32px 20px 28px; }
-  .age-gate-title { font-size: 22px; }
-  .age-gate-btn { min-width: unset; flex: 1; padding: 13px 16px; }
+  .age-gate-actions {
+    flex-direction: column;
+  }
+  .age-gate-btn {
+    min-width: 100%;
+  }
 }
 
 /* =====================================================
