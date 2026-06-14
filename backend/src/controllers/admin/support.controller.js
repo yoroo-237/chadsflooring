@@ -2,7 +2,8 @@ const prisma = require('../../db');
 const { success, error } = require('../../utils/apiResponse');
 const { parsePaginationParams, buildPagination } = require('../../utils/pagination');
 
-async function listTickets(req, res) {
+async function listTickets(req, res, next) {
+  try {
   const { page, limit } = parsePaginationParams(req.query);
   const { status, priority, category, assignedTo } = req.query;
 
@@ -30,7 +31,7 @@ async function listTickets(req, res) {
       skip,
       take: limit,
       include: {
-        user:     { select: { id: true, username: true, email: true } },
+        user:     { select: { id: true, username: true } },
         messages: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
     }),
@@ -45,9 +46,11 @@ async function listTickets(req, res) {
     total,
     pagination: buildPagination(page, limit, total),
   });
+  } catch (e) { next(e); }
 }
 
-async function createMessage(req, res) {
+async function createMessage(req, res, next) {
+  try {
   const id = parseInt(req.params.id);
   const { message, isInternal = false } = req.body;
 
@@ -71,9 +74,11 @@ async function createMessage(req, res) {
   await prisma.supportTicket.update({ where: { id }, data: updateData });
 
   return success(res, { message: msg }, 201);
+  } catch (e) { next(e); }
 }
 
-async function updateTicketStatus(req, res) {
+async function updateTicketStatus(req, res, next) {
+  try {
   const id = parseInt(req.params.id);
   const { status } = req.body;
 
@@ -87,9 +92,11 @@ async function updateTicketStatus(req, res) {
 
   await prisma.supportTicket.update({ where: { id }, data: { status } });
   return success(res, { status });
+  } catch (e) { next(e); }
 }
 
-async function assignTicket(req, res) {
+async function assignTicket(req, res, next) {
+  try {
   const id = parseInt(req.params.id);
   const { adminId } = req.body;
 
@@ -106,9 +113,11 @@ async function assignTicket(req, res) {
 
   await prisma.supportTicket.update({ where: { id }, data: { assignedTo: admin.id } });
   return success(res, { assignedTo: admin.id });
+  } catch (e) { next(e); }
 }
 
-async function updatePriority(req, res) {
+async function updatePriority(req, res, next) {
+  try {
   const id = parseInt(req.params.id);
   const { priority } = req.body;
 
@@ -122,12 +131,15 @@ async function updatePriority(req, res) {
 
   await prisma.supportTicket.update({ where: { id }, data: { priority } });
   return success(res, { priority });
+  } catch (e) { next(e); }
 }
 
-async function getStats(req, res) {
+async function getStats(req, res, next) {
+  try {
   const statuses = ['open', 'in_progress', 'resolved', 'closed'];
   const counts = await Promise.all(statuses.map(s => prisma.supportTicket.count({ where: { status: s } })));
   return success(res, Object.fromEntries(statuses.map((s, i) => [s, counts[i]])));
+  } catch (e) { next(e); }
 }
 
 module.exports = { listTickets, getStats, createMessage, updateTicketStatus, assignTicket, updatePriority };

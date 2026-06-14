@@ -2111,8 +2111,9 @@ ul, ol { list-style: none; }
   .header-nav-tabs { display:none; }
 }
 @media (max-width:700px) {
-  .header-search { min-width:0; flex:1; }
+  .header-search { display:none; }
   .search-balance-chip { display:none; }
+  .header-logo { flex:1; }
   .products-grid { grid-template-columns:repeat(auto-fill, minmax(165px, 1fr)); gap:10px; }
   .cart-drawer { width:100%; }
   .filter-panel { width:100%; }

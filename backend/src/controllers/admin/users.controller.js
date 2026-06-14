@@ -28,56 +28,59 @@ function tierToSpentFilter(tier) {
   }
 }
 
-async function listUsers(req, res) {
-  const { page, limit } = parsePaginationParams(req.query);
-  const { role, isActive, tier, search, sortBy = 'id', sortOrder = 'asc' } = req.query;
+async function listUsers(req, res, next) {
+  try {
+    const { page, limit } = parsePaginationParams(req.query);
+    const { role, isActive, tier, search, sortBy = 'id', sortOrder = 'asc' } = req.query;
 
-  const where = {};
-  if (role !== undefined)     where.role     = role;
-  if (isActive !== undefined) where.isActive = isActive === 'true';
-  if (search) {
-    where.username = { contains: search, mode: 'insensitive' };
-  }
-  if (tier) {
-    const range = tierToSpentFilter(tier);
-    if (range) where.totalSpent = range;
-  }
+    const where = {};
+    if (role !== undefined)     where.role     = role;
+    if (isActive !== undefined) where.isActive = isActive === 'true';
+    if (search) {
+      where.username = { contains: search, mode: 'insensitive' };
+    }
+    if (tier) {
+      const range = tierToSpentFilter(tier);
+      if (range) where.totalSpent = range;
+    }
 
-  const ALLOWED_SORT = ['id', 'balance', 'totalSpent', 'points', 'createdAt', 'lastLoginAt'];
-  const orderField = ALLOWED_SORT.includes(sortBy) ? sortBy : 'id';
-  const orderDir   = sortOrder === 'desc' ? 'desc' : 'asc';
-  const skip       = (page - 1) * limit;
+    const ALLOWED_SORT = ['id', 'balance', 'totalSpent', 'points', 'createdAt', 'lastLoginAt'];
+    const orderField = ALLOWED_SORT.includes(sortBy) ? sortBy : 'id';
+    const orderDir   = sortOrder === 'desc' ? 'desc' : 'asc';
+    const skip       = (page - 1) * limit;
 
-  const [total, users] = await Promise.all([
-    prisma.user.count({ where }),
-    prisma.user.findMany({
-      where,
-      orderBy: { [orderField]: orderDir },
-      skip,
-      take: limit,
-      select: {
-        id: true, username: true, role: true,
-        isActive: true, balance: true, points: true, totalSpent: true,
-        markupPct: true, createdAt: true, lastLoginAt: true, avatarUrl: true,
-        _count: { select: { orders: true } },
-      },
-    }),
-  ]);
+    const [total, users] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        orderBy: { [orderField]: orderDir },
+        skip,
+        take: limit,
+        select: {
+          id: true, username: true, role: true,
+          isActive: true, balance: true, points: true, totalSpent: true,
+          markupPct: true, createdAt: true, lastLoginAt: true, avatarUrl: true,
+          _count: { select: { orders: true } },
+        },
+      }),
+    ]);
 
-  return success(res, {
-    users: users.map(u => ({
-      ...u,
-      balance:    parseFloat(u.balance),
-      totalSpent: parseFloat(u.totalSpent),
-      markupPct:  parseFloat(u.markupPct),
-      tier:       getTier(u.totalSpent),
-    })),
-    total,
-    pagination: buildPagination(page, limit, total),
-  });
+    return success(res, {
+      users: users.map(u => ({
+        ...u,
+        balance:    parseFloat(u.balance),
+        totalSpent: parseFloat(u.totalSpent),
+        markupPct:  parseFloat(u.markupPct),
+        tier:       getTier(u.totalSpent),
+      })),
+      total,
+      pagination: buildPagination(page, limit, total),
+    });
+  } catch (e) { next(e); }
 }
 
-async function getUserById(req, res) {
+async function getUserById(req, res, next) {
+  try {
   const id = parseInt(req.params.id);
 
   const user = await prisma.user.findUnique({
@@ -144,9 +147,11 @@ async function getUserById(req, res) {
     recentTickets:      tickets,
     apiKeys,
   });
+  } catch (e) { next(e); }
 }
 
-async function updateUser(req, res) {
+async function updateUser(req, res, next) {
+  try {
   const id = parseInt(req.params.id);
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) return error(res, 'User not found.', 404);
@@ -163,9 +168,11 @@ async function updateUser(req, res) {
     updated: true,
     user: { id: updated.id, role: updated.role, isActive: updated.isActive, username: updated.username },
   });
+  } catch (e) { next(e); }
 }
 
-async function banUser(req, res) {
+async function banUser(req, res, next) {
+  try {
   const id = parseInt(req.params.id);
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) return error(res, 'User not found.', 404);
@@ -177,9 +184,11 @@ async function banUser(req, res) {
     isActive: newIsActive,
     message:  newIsActive ? 'User unbanned.' : 'User banned.',
   });
+  } catch (e) { next(e); }
 }
 
-async function adjustWallet(req, res) {
+async function adjustWallet(req, res, next) {
+  try {
   const id = parseInt(req.params.id);
   const { type, amount, reason } = req.body;
 
@@ -224,9 +233,11 @@ async function adjustWallet(req, res) {
   });
 
   return success(res, result);
+  } catch (e) { next(e); }
 }
 
-async function createUser(req, res) {
+async function createUser(req, res, next) {
+  try {
   const { username, password, role = 'customer' } = req.body;
   if (!username?.trim()) return error(res, 'username is required.', 400);
   if (!password || password.length < 6) return error(res, 'password must be at least 6 characters.', 400);
@@ -242,6 +253,7 @@ async function createUser(req, res) {
     select: { id: true, username: true, role: true, createdAt: true },
   });
   return success(res, { user }, 201);
+  } catch (e) { next(e); }
 }
 
 module.exports = { listUsers, getUserById, updateUser, banUser, adjustWallet, createUser };

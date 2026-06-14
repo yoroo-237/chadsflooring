@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { requireAuth, requireAdmin } = require('../middlewares/auth');
 const { uploadProductImage } = require('../middlewares/upload');
+const wrap = require('../utils/asyncHandler');
 
 const dashboardCtrl    = require('../controllers/admin/dashboard.controller');
 const usersCtrl        = require('../controllers/admin/users.controller');
@@ -21,85 +22,85 @@ const router = Router();
 router.use(requireAuth, requireAdmin);
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-router.get('/dashboard', dashboardCtrl.getDashboard);
+router.get('/dashboard', wrap(dashboardCtrl.getDashboard));
 
 // ─── Users ───────────────────────────────────────────────────────────────────
-router.get('/users',                     usersCtrl.listUsers);
-router.post('/users',                    usersCtrl.createUser);
-router.get('/users/:id',                 usersCtrl.getUserById);
-router.put('/users/:id',                 usersCtrl.updateUser);
-router.patch('/users/:id/ban',           usersCtrl.banUser);
-router.post('/users/:id/wallet/adjust',  usersCtrl.adjustWallet);
+router.get('/users',                     wrap(usersCtrl.listUsers));
+router.post('/users',                    wrap(usersCtrl.createUser));
+router.get('/users/:id',                 wrap(usersCtrl.getUserById));
+router.put('/users/:id',                 wrap(usersCtrl.updateUser));
+router.patch('/users/:id/ban',           wrap(usersCtrl.banUser));
+router.post('/users/:id/wallet/adjust',  wrap(usersCtrl.adjustWallet));
 
 // ─── Orders ──────────────────────────────────────────────────────────────────
-router.get('/orders',                ordersCtrl.listOrders);
-router.patch('/orders/:id/status',   ordersCtrl.updateOrderStatus);
-router.patch('/orders/:id/tracking', ordersCtrl.updateOrderTracking);
+router.get('/orders',                wrap(ordersCtrl.listOrders));
+router.patch('/orders/:id/status',   wrap(ordersCtrl.updateOrderStatus));
+router.patch('/orders/:id/tracking', wrap(ordersCtrl.updateOrderTracking));
 
 // ─── Products ────────────────────────────────────────────────────────────────
-router.get('/products',              productsCtrl.listProducts);
-router.post('/products',             uploadProductImage, productsCtrl.createProduct);
-router.put('/products/:id',          productsCtrl.updateProduct);
-router.delete('/products/:id',       productsCtrl.removeProduct);
-router.patch('/products/:id/stock',  productsCtrl.patchStock);
+router.get('/products',              wrap(productsCtrl.listProducts));
+router.post('/products',             uploadProductImage, wrap(productsCtrl.createProduct));
+router.put('/products/:id',          wrap(productsCtrl.updateProduct));
+router.delete('/products/:id',       wrap(productsCtrl.removeProduct));
+router.patch('/products/:id/stock',  wrap(productsCtrl.patchStock));
 
 // ─── Deposits ────────────────────────────────────────────────────────────────
-router.get('/deposits',                depositsCtrl.listDeposits);
-router.patch('/deposits/:id/confirm',  depositsCtrl.confirmDeposit);
-router.patch('/deposits/:id/expire',   depositsCtrl.expireDeposit);
+router.get('/deposits',                wrap(depositsCtrl.listDeposits));
+router.patch('/deposits/:id/confirm',  wrap(depositsCtrl.confirmDeposit));
+router.patch('/deposits/:id/expire',   wrap(depositsCtrl.expireDeposit));
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
-router.get('/transactions', transactionsCtrl.listTransactions);
+router.get('/transactions', wrap(transactionsCtrl.listTransactions));
 
 // ─── Support ─────────────────────────────────────────────────────────────────
-router.get('/support/stats',                      supportCtrl.getStats);
-router.get('/support',                            supportCtrl.listTickets);
-router.get('/support/tickets',                    supportCtrl.listTickets);
-router.post('/support/tickets/:id/messages',      supportCtrl.createMessage);
-router.patch('/support/tickets/:id/status',       supportCtrl.updateTicketStatus);
-router.patch('/support/tickets/:id/assign',       supportCtrl.assignTicket);
-router.patch('/support/tickets/:id/priority',     supportCtrl.updatePriority);
+router.get('/support/stats',                      wrap(supportCtrl.getStats));
+router.get('/support',                            wrap(supportCtrl.listTickets));
+router.get('/support/tickets',                    wrap(supportCtrl.listTickets));
+router.post('/support/tickets/:id/messages',      wrap(supportCtrl.createMessage));
+router.patch('/support/tickets/:id/status',       wrap(supportCtrl.updateTicketStatus));
+router.patch('/support/tickets/:id/assign',       wrap(supportCtrl.assignTicket));
+router.patch('/support/tickets/:id/priority',     wrap(supportCtrl.updatePriority));
 
 // ─── Reviews ─────────────────────────────────────────────────────────────────
-router.get('/reviews',                reviewsCtrl.listReviews);
-router.patch('/reviews/:id/approve',  reviewsCtrl.approveReview);
-router.delete('/reviews/:id',         reviewsCtrl.deleteReview);
+router.get('/reviews',                wrap(reviewsCtrl.listReviews));
+router.patch('/reviews/:id/approve',  wrap(reviewsCtrl.approveReview));
+router.delete('/reviews/:id',         wrap(reviewsCtrl.deleteReview));
 
 // ─── Content: News ───────────────────────────────────────────────────────────
-router.get('/news',        contentCtrl.listNews);
-router.post('/news',       contentCtrl.createNews);
-router.put('/news/:id',    contentCtrl.updateNews);
-router.delete('/news/:id', contentCtrl.deleteNews);
+router.get('/news',        wrap(contentCtrl.listNews));
+router.post('/news',       wrap(contentCtrl.createNews));
+router.put('/news/:id',    wrap(contentCtrl.updateNews));
+router.delete('/news/:id', wrap(contentCtrl.deleteNews));
 
 // ─── Content: FAQ — /faq/reorder must come before /faq/:id ──────────────────
-router.get('/faq',           contentCtrl.listFaq);
-router.post('/faq',          contentCtrl.createFaq);
-router.put('/faq/reorder',   contentCtrl.reorderFaq);
-router.put('/faq/:id',       contentCtrl.updateFaq);
-router.delete('/faq/:id',    contentCtrl.deleteFaq);
+router.get('/faq',           wrap(contentCtrl.listFaq));
+router.post('/faq',          wrap(contentCtrl.createFaq));
+router.put('/faq/reorder',   wrap(contentCtrl.reorderFaq));
+router.put('/faq/:id',       wrap(contentCtrl.updateFaq));
+router.delete('/faq/:id',    wrap(contentCtrl.deleteFaq));
 
 // ─── Content: Giveaways ──────────────────────────────────────────────────────
-router.get('/giveaways',               contentCtrl.listGiveaways);
-router.post('/giveaways',              contentCtrl.createGiveaway);
-router.put('/giveaways/:id',           contentCtrl.updateGiveaway);
-router.delete('/giveaways/:id',        contentCtrl.deleteGiveaway);
-router.get('/giveaways/:id/entries',   contentCtrl.getGiveawayEntries);
+router.get('/giveaways',               wrap(contentCtrl.listGiveaways));
+router.post('/giveaways',              wrap(contentCtrl.createGiveaway));
+router.put('/giveaways/:id',           wrap(contentCtrl.updateGiveaway));
+router.delete('/giveaways/:id',        wrap(contentCtrl.deleteGiveaway));
+router.get('/giveaways/:id/entries',   wrap(contentCtrl.getGiveawayEntries));
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
-router.get('/analytics', analyticsCtrl.getAnalytics);
+router.get('/analytics', wrap(analyticsCtrl.getAnalytics));
 
 // ─── Catalog lookups (for product form dropdowns) ─────────────────────────────
-router.get('/categories', categoriesCtrl.list);
-router.get('/brands',     brandsCtrl.list);
+router.get('/categories', wrap(categoriesCtrl.list));
+router.get('/brands',     wrap(brandsCtrl.list));
 
 // ─── Settings ────────────────────────────────────────────────────────────────
-router.get('/settings',                    settingsCtrl.getAllSettings);
-router.put('/settings',                    settingsCtrl.updateSettings);
-router.get('/system-status',               settingsCtrl.getSystemStatus);
-router.put('/system-status/:id',           settingsCtrl.updateSystemStatus);
-router.get('/system-status/incidents',     settingsCtrl.listIncidents);
-router.post('/system-status/incidents',    settingsCtrl.createIncident);
-router.put('/system-status/incidents/:id', settingsCtrl.updateIncident);
-router.delete('/system-status/incidents/:id', settingsCtrl.deleteIncident);
+router.get('/settings',                    wrap(settingsCtrl.getAllSettings));
+router.put('/settings',                    wrap(settingsCtrl.updateSettings));
+router.get('/system-status',               wrap(settingsCtrl.getSystemStatus));
+router.put('/system-status/:id',           wrap(settingsCtrl.updateSystemStatus));
+router.get('/system-status/incidents',     wrap(settingsCtrl.listIncidents));
+router.post('/system-status/incidents',    wrap(settingsCtrl.createIncident));
+router.put('/system-status/incidents/:id', wrap(settingsCtrl.updateIncident));
+router.delete('/system-status/incidents/:id', wrap(settingsCtrl.deleteIncident));
 
 module.exports = router;

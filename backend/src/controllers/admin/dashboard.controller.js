@@ -1,7 +1,8 @@
 const prisma = require('../../db');
 const { success } = require('../../utils/apiResponse');
 
-async function getDashboard(req, res) {
+async function getDashboard(req, res, next) {
+  try {
   const [
     revenueRows,
     ordersRows,
@@ -70,7 +71,6 @@ async function getDashboard(req, res) {
         o.id,
         o."frontendId",
         u.username,
-        u.email,
         o."totalAmount"::float AS "totalAmount",
         o.status,
         o."placedAt"
@@ -122,19 +122,31 @@ async function getDashboard(req, res) {
   }
 
   return success(res, {
-    revenue:  revenueRows[0],
-    orders:   ordersRows[0],
-    users:    usersRows[0],
-    products: productsRows[0],
-    tickets:  ticketsRows[0],
-    topProducts,
-    recentOrders,
+    stats: {
+      revenue:  revenueRows[0],
+      orders:   ordersRows[0],
+      users:    usersRows[0],
+      products: productsRows[0],
+      tickets:  ticketsRows[0],
+    },
+    charts: {
+      revenueChart,
+      ordersStatusChart,
+      topProducts,
+      newUsersChart,
+    },
+    recentOrders: recentOrders.map(o => ({
+      id:          o.id,
+      orderNumber: o.frontendId || String(o.id),
+      user:        { username: o.username },
+      total:       o.totalAmount,
+      status:      o.status,
+      placedAt:    o.placedAt,
+    })),
     lowStockProducts,
     recentUnassignedTickets,
-    revenueChart,
-    ordersStatusChart,
-    newUsersChart,
   });
+  } catch (e) { next(e); }
 }
 
 module.exports = { getDashboard };
