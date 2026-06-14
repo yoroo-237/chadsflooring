@@ -2231,6 +2231,19 @@ ul, ol { list-style: none; }
   font-weight: 700;
 }
 .account-nav-item.active svg { color: var(--text-secondary); }
+.account-sidebar-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 8px 12px;
+}
+.account-nav-admin {
+  color: var(--accent) !important;
+}
+.account-nav-admin svg { color: var(--accent) !important; }
+.account-nav-admin:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+[data-theme="dark"] .account-nav-admin { color: #7eb87e !important; }
+[data-theme="dark"] .account-nav-admin svg { color: #7eb87e !important; }
+[data-theme="dark"] .account-nav-admin:hover { background: rgba(126,184,126,.12); }
 .account-sidebar-footer {
   padding: 16px 16px 22px;
   margin-top: auto;

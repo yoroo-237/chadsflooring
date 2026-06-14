@@ -58,6 +58,13 @@ function LogoutIcon() {
     </svg>
   );
 }
+function AdminIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+    </svg>
+  );
+}
 
 const NAV_ITEMS = [
   { label: 'Profile',   path: '/profile',  icon: <UserIcon /> },
@@ -93,6 +100,19 @@ export default function AccountSidebar() {
             <span>{item.label}</span>
           </Link>
         ))}
+
+        {user?.role === 'admin' && (
+          <>
+            <div className="account-sidebar-divider" />
+            <a
+              href="/mario-dashboard"
+              className="account-nav-item account-nav-admin"
+            >
+              <AdminIcon />
+              <span>Admin Dashboard</span>
+            </a>
+          </>
+        )}
       </nav>
 
       <div className="account-sidebar-footer">

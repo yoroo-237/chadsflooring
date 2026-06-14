@@ -43,9 +43,9 @@ export function AppProvider({ children }) {
   const loadUserData = useCallback(async () => {
     const [profileData, walletData, catsData, settingsData] = await Promise.all([
       api.get('/profile').catch(() => null),
-      api.get('/wallet/balance').catch(() => null),
+      api.get('/wallet').catch(() => null),
       api.get('/categories').catch(() => null),
-      api.get('/settings/public').catch(() => null),
+      api.get('/content/settings').catch(() => null),
     ]);
     if (profileData) setUser(profileData.user || profileData);
     if (walletData?.balance != null) setBalance(Number(walletData.balance));

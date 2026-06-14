@@ -10,7 +10,8 @@ function requireAuth(req, res, next) {
 
   const token = authHeader.slice(7);
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = { ...payload, id: payload.sub ?? payload.id };
     next();
   } catch {
     res.status(401).json({ success: false, error: 'Invalid or expired token.' });
@@ -59,7 +60,8 @@ function optionalAuth(req, res, next) {
   const authHeader = req.headers['authorization'];
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
-      req.user = jwt.verify(authHeader.slice(7), process.env.JWT_SECRET);
+      const payload = jwt.verify(authHeader.slice(7), process.env.JWT_SECRET);
+      req.user = { ...payload, id: payload.sub ?? payload.id };
     } catch {
       // invalid / expired token — just proceed without user
     }
