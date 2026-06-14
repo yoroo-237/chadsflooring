@@ -76,8 +76,7 @@ export default function AdminOrderDetail() {
         <div className="admin-card">
           <div className="admin-card-title">Customer</div>
           <div className="admin-info-list">
-            <div className="admin-info-row"><span className="admin-info-label">Name</span><span className="admin-info-value">{order.user?.username || '—'}</span></div>
-            <div className="admin-info-row"><span className="admin-info-label">Email</span><span className="admin-info-value">{order.user?.email || '—'}</span></div>
+            <div className="admin-info-row"><span className="admin-info-label">Username</span><span className="admin-info-value">{order.user?.username || '—'}</span></div>
           </div>
         </div>
 

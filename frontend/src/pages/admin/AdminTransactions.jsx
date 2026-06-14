@@ -114,7 +114,6 @@ export default function AdminTransactions() {
                     <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#6c757d' }}>{shortId(t.id)}</td>
                     <td>
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{t.user?.username || '—'}</div>
-                      <div style={{ fontSize: 11, color: '#6c757d' }}>{t.user?.email}</div>
                     </td>
                     <td><StatusBadge status={t.type} label={t.type} /></td>
                     <td style={{

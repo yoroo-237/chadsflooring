@@ -43,7 +43,7 @@ export default function AdminUsers() {
         </div>
       </div>
       <div className="admin-filters">
-        <SearchInput value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search name or email…" />
+        <SearchInput value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search by username…" />
         <select className="admin-filter-select" value={tier} onChange={e => { setTier(e.target.value); setPage(1); }}>
           <option value="">All tiers</option>
           {TIERS.filter(Boolean).map(t => <option key={t} value={t}>{t}</option>)}
@@ -52,7 +52,7 @@ export default function AdminUsers() {
       {err && <div style={{ color: '#e53935', marginBottom: 12 }}>{err}</div>}
       <div className="admin-table-wrap">
         <table className="admin-table">
-          <thead><tr><th>User</th><th>Email</th><th>Tier</th><th>Balance</th><th>Orders</th><th>Joined</th><th></th></tr></thead>
+          <thead><tr><th>User</th><th>Role</th><th>Tier</th><th>Balance</th><th>Orders</th><th>Joined</th><th></th></tr></thead>
           <tbody>
             {loading
               ? Array.from({ length: 8 }, (_, i) => <tr key={i}>{Array.from({length:7},(_,j)=><td key={j}><span className="admin-skel" style={{width:'80%',height:14,display:'block'}}/></td>)}</tr>)
@@ -62,11 +62,11 @@ export default function AdminUsers() {
                   <tr key={u.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/mario-dashboard/users/${u.id}`)}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div className="admin-avatar" style={{ width: 28, height: 28, fontSize: 12 }}>{(u.username?.[0] || u.email?.[0] || '?').toUpperCase()}</div>
+                        <div className="admin-avatar" style={{ width: 28, height: 28, fontSize: 12 }}>{(u.username?.[0] || '?').toUpperCase()}</div>
                         <span style={{ fontWeight: 600 }}>{u.username || '—'}</span>
                       </div>
                     </td>
-                    <td style={{ color: '#6c757d' }}>{u.email}</td>
+                    <td style={{ color: '#6c757d', fontSize: 12 }}>{u.role || 'customer'}</td>
                     <td><StatusBadge status={u.tier || 'basic'} label={u.tier || 'basic'} /></td>
                     <td>{fmt(u.balance || 0)}</td>
                     <td>{u._count?.orders ?? u.orderCount ?? 0}</td>

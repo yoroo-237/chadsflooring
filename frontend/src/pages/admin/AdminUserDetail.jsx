@@ -47,8 +47,8 @@ export default function AdminUserDetail() {
       <div className="admin-page-header">
         <div>
           <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: 8 }}>← Back</button>
-          <h1 className="admin-page-title">{u.username || u.email}</h1>
-          <p className="admin-page-subtitle">{u.email} · <StatusBadge status={u.tier || 'basic'} label={u.tier || 'basic'} /></p>
+          <h1 className="admin-page-title">{u.username || '—'}</h1>
+          <p className="admin-page-subtitle"><StatusBadge status={u.tier || 'basic'} label={u.tier || 'basic'} /></p>
         </div>
         <button className="admin-btn admin-btn-primary" onClick={() => { setBalForm({ type: 'credit', amount: '', reason: '' }); setBalModal(true); }}>
           Adjust Balance
@@ -69,7 +69,6 @@ export default function AdminUserDetail() {
             <div className="admin-info-list">
               <div className="admin-info-row"><span className="admin-info-label">ID</span><span className="admin-info-value">{u.id}</span></div>
               <div className="admin-info-row"><span className="admin-info-label">Username</span><span className="admin-info-value">{u.username || '—'}</span></div>
-              <div className="admin-info-row"><span className="admin-info-label">Email</span><span className="admin-info-value">{u.email}</span></div>
               <div className="admin-info-row"><span className="admin-info-label">Phone</span><span className="admin-info-value">{u.phone || '—'}</span></div>
               <div className="admin-info-row"><span className="admin-info-label">Role</span><span className="admin-info-value">{u.role}</span></div>
               <div className="admin-info-row"><span className="admin-info-label">Tier</span><span className="admin-info-value">{u.tier || 'basic'}</span></div>

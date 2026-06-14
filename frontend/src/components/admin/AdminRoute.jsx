@@ -3,7 +3,7 @@ import { decodeToken, API_BASE } from '../../pages/admin/utils/api';
 import '../../pages/admin/admin.css';
 
 function LoginForm({ onSuccess }) {
-  const [email, setEmail]       = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [err, setErr]           = useState(null);
@@ -16,12 +16,13 @@ function LoginForm({ onSuccess }) {
       const res  = await fetch(`${API_BASE}/auth/login`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email, password }),
+        body:    JSON.stringify({ username, password }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Login failed.');
       if (json.data.user?.role !== 'admin') throw new Error('Admin access required.');
       localStorage.setItem('token', json.data.token);
+      if (json.data.refreshToken) localStorage.setItem('refreshToken', json.data.refreshToken);
       onSuccess();
     } catch (e) {
       setErr(e.message);
@@ -33,16 +34,16 @@ function LoginForm({ onSuccess }) {
   return (
     <div className="admin-login-wrap">
       <div className="admin-login-card">
-        <div className="admin-login-logo">🌿 Canna Express</div>
+        <div className="admin-login-logo">Canna Express</div>
         <div className="admin-login-sub">Admin dashboard — sign in to continue</div>
         <form onSubmit={handle}>
           <div className="admin-form-group">
-            <label className="admin-label">Email</label>
-            <input className="admin-input" type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
+            <label className="admin-label">Username</label>
+            <input className="admin-input" type="text" value={username} onChange={e => setUsername(e.target.value)} required autoFocus autoComplete="username" />
           </div>
           <div className="admin-form-group">
             <label className="admin-label">Password</label>
-            <input className="admin-input" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+            <input className="admin-input" type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
           </div>
           {err && <div style={{ color:'#e53935', fontSize:13, marginBottom:12 }}>{err}</div>}
           <button className="admin-btn admin-btn-primary" style={{ width:'100%', justifyContent:'center', padding:'10px' }} disabled={loading}>

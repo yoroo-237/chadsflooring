@@ -78,9 +78,9 @@ export default function TeamPage() {
   const [fetchError,    setFetchError]    = useState(null);
   const [teamData,      setTeamData]      = useState(null);
 
-  const [inviteEmail,   setInviteEmail]   = useState('');
-  const [inviting,      setInviting]      = useState(false);
-  const [inviteMsg,     setInviteMsg]     = useState(null); // { type: 'success'|'error', text }
+  const [inviteUsername, setInviteUsername] = useState('');
+  const [inviting,       setInviting]      = useState(false);
+  const [inviteMsg,      setInviteMsg]     = useState(null); // { type: 'success'|'error', text }
 
   const [removingId,    setRemovingId]    = useState(null);
 
@@ -103,19 +103,19 @@ export default function TeamPage() {
 
   const handleInvite = async e => {
     e.preventDefault();
-    if (!inviteEmail.trim()) return;
+    if (!inviteUsername.trim()) return;
     setInviting(true);
     setInviteMsg(null);
     try {
       const res = await fetch(`${API_BASE}/team/invite`, {
         method:  'POST',
         headers: authHeaders(),
-        body:    JSON.stringify({ email: inviteEmail.trim() }),
+        body:    JSON.stringify({ username: inviteUsername.trim() }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Invite failed.');
-      setInviteMsg({ type: 'success', text: `Invite sent to ${inviteEmail.trim()}.` });
-      setInviteEmail('');
+      setInviteMsg({ type: 'success', text: `Invite sent to @${inviteUsername.trim()}.` });
+      setInviteUsername('');
       loadTeam();
     } catch (err) {
       setInviteMsg({ type: 'error', text: err.message });
@@ -188,10 +188,10 @@ export default function TeamPage() {
 
             <form onSubmit={handleInvite} style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <input
-                type="email"
-                placeholder="member@email.com"
-                value={inviteEmail}
-                onChange={e => setInviteEmail(e.target.value)}
+                type="text"
+                placeholder="username"
+                value={inviteUsername}
+                onChange={e => setInviteUsername(e.target.value)}
                 disabled={inviting}
                 style={{
                   flex: '1 1 220px',
@@ -206,7 +206,7 @@ export default function TeamPage() {
               />
               <button
                 type="submit"
-                disabled={inviting || !inviteEmail.trim()}
+                disabled={inviting || !inviteUsername.trim()}
                 style={{
                   padding: '9px 22px',
                   borderRadius: 8,
@@ -258,7 +258,7 @@ export default function TeamPage() {
               <table className="credits-table">
                 <thead>
                   <tr>
-                    <th>Email</th>
+                    <th>Username</th>
                     <th>Status</th>
                     <th>Joined</th>
                     <th>Actions</th>
@@ -284,8 +284,8 @@ export default function TeamPage() {
                     members.map(member => (
                       <tr key={member.id}>
                         <td>
-                          <div style={{ fontWeight: 500 }}>{member.inviteEmail}</div>
-                          {member.memberUsername && (
+                          <div style={{ fontWeight: 500 }}>@{member.inviteUsername || member.memberUsername || '—'}</div>
+                          {member.memberUsername && member.inviteUsername !== member.memberUsername && (
                             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                               @{member.memberUsername}
                             </div>

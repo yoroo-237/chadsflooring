@@ -1,4 +1,6 @@
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
+const API_BASE = process.env.REACT_APP_API_URL
+  ? `${process.env.REACT_APP_API_URL}/api`
+  : 'http://localhost:4000/api';
 
 export { API_BASE };
 
@@ -25,8 +27,10 @@ async function refreshAccessToken() {
     body: JSON.stringify({ refreshToken }),
   });
   if (!res.ok) throw new Error('Refresh failed');
-  const data = await res.json();
-  const token = data.token || data.accessToken;
+  const json = await res.json();
+  // unwrap { success, data: { token } } envelope
+  const payload = json.success === true && 'data' in json ? json.data : json;
+  const token = payload.token || payload.accessToken;
   if (token) setToken(token);
   return token;
 }
@@ -54,7 +58,11 @@ export async function apiCall(endpoint, options = {}) {
     }
   }
 
-  return res.json();
+  const json = await res.json();
+  // Auto-unwrap the { success: true, data: {...} } envelope used by every backend route.
+  // Error responses ({ success: false, error: '...' }) are returned as-is so callers
+  // can inspect .error / .success when needed.
+  return json.success === true && 'data' in json ? json.data : json;
 }
 
 export const api = {

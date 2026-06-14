@@ -157,7 +157,6 @@ export default function AdminDeposits() {
                     <td style={{ fontFamily: 'monospace', fontSize: 12, color: '#6c757d' }}>{shortId(d.id)}</td>
                     <td>
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{d.user?.username || '—'}</div>
-                      <div style={{ fontSize: 11, color: '#6c757d' }}>{d.user?.email}</div>
                     </td>
                     <td><CurrencyBadge currency={d.currency} /></td>
                     <td>

@@ -24,7 +24,7 @@ export default function SupportPage() {
   const { showToast } = useApp();
   const [tickets, setTickets] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ subject: '', category: 'General', message: '', email: '' });
+  const [form, setForm] = useState({ subject: '', category: 'General', message: '' });
   const [errors, setErrors] = useState({});
   const [sending, setSending] = useState(false);
 
@@ -34,7 +34,6 @@ export default function SupportPage() {
 
   const validate = () => {
     const e = {};
-    if (!form.email.trim() || !form.email.includes('@')) e.email = 'Valid email required';
     if (!form.subject.trim()) e.subject = 'Subject is required';
     if (form.message.trim().length < 10) e.message = 'Please provide more detail';
     return e;
@@ -53,12 +52,12 @@ export default function SupportPage() {
     setSending(true);
     try {
       const data = await api.post('/support/tickets', {
-        subject: form.subject, category: form.category, message: form.message, email: form.email,
+        subject: form.subject, category: form.category, message: form.message,
       });
       const ticket = data.ticket || data;
       setTickets(prev => [ticket, ...prev]);
       setShowForm(false);
-      setForm({ subject: '', category: 'General', message: '', email: '' });
+      setForm({ subject: '', category: 'General', message: '' });
       showToast('Support ticket submitted!', 'success');
     } catch (err) {
       showToast(err.message || 'Failed to submit ticket', 'error');
@@ -86,18 +85,11 @@ export default function SupportPage() {
           {showForm && (
             <div className="support-form-card">
               <form onSubmit={handleSubmit}>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Your Email *</label>
-                    <input className={`form-input${errors.email ? ' error' : ''}`} name="email" value={form.email} onChange={handleChange} placeholder="your@email.com" type="email" />
-                    {errors.email && <span className="form-error">{errors.email}</span>}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Category</label>
-                    <select className="form-input" name="category" value={form.category} onChange={handleChange}>
-                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
+                <div className="form-group">
+                  <label className="form-label">Category</label>
+                  <select className="form-input" name="category" value={form.category} onChange={handleChange}>
+                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Subject *</label>
