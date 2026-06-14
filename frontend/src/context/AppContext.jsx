@@ -51,10 +51,14 @@ export function AppProvider({ children }) {
       api.get('/categories').catch(() => null),
       api.get('/settings/public').catch(() => null),
     ]).then(([profileData, walletData, catsData, settingsData]) => {
-      if (profileData?.user) setUser(profileData.user);
+      // Backend may nest user under .user or return it directly
+      if (profileData) setUser(profileData.user || profileData);
       if (walletData?.balance != null) setBalance(Number(walletData.balance));
-      if (catsData?.categories) setCategories(catsData.categories);
-      if (settingsData?.settings) setSettings(settingsData.settings);
+      // Categories may be array directly or { categories: [...] }
+      const cats = catsData?.categories ?? (Array.isArray(catsData) ? catsData : null);
+      if (cats) setCategories(cats);
+      const sett = settingsData?.settings ?? settingsData;
+      if (sett && typeof sett === 'object') setSettings(sett);
     }).finally(() => setLoadingAuth(false));
   }, []);
 
@@ -114,12 +118,12 @@ export function AppProvider({ children }) {
 
   const refreshDeposits = useCallback(async () => {
     const data = await api.get('/wallet/deposits').catch(() => null);
-    if (data) setDeposits(data.deposits || data || []);
+    if (data) setDeposits(data.deposits ?? (Array.isArray(data) ? data : []));
   }, []);
 
   const refreshTransactions = useCallback(async () => {
     const data = await api.get('/wallet/transactions').catch(() => null);
-    if (data) setTransactions(data.transactions || data || []);
+    if (data) setTransactions(data.transactions ?? (Array.isArray(data) ? data : []));
   }, []);
 
   const toggleWish = useCallback((id) => {

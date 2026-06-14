@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom';
 import { apiCall } from '../utils/api';
 
 export default function LoginPage() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const location  = useLocation();
+  const from      = location.state?.from?.pathname || '/';
+
+  if (localStorage.getItem('token')) return <Navigate to={from} replace />;
   const [tab, setTab]             = useState('login');
   const [form, setForm]           = useState({ username: '', password: '' });
   const [errors, setErrors]       = useState({});
@@ -35,7 +39,7 @@ export default function LoginPage() {
       if (data.token || data.accessToken) {
         localStorage.setItem('token', data.token || data.accessToken);
         if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
-        navigate('/');
+        navigate(from, { replace: true });
       } else {
         setServerErr(data.error || data.message || 'Login failed');
       }
