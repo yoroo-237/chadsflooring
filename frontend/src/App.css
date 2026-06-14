@@ -2096,10 +2096,12 @@ ul, ol { list-style: none; }
   .profile-layout { grid-template-columns:1fr; }
   .profile-sidebar { position:static; }
   .support-info-cards { grid-template-columns:1fr; }
-  .best-selling-layout { grid-template-columns:1fr; padding:32px 24px; min-height:unset; }
-  .best-selling-products { height:auto; }
+  .best-selling { grid-template-columns:1fr; padding:40px 20px; }
+  .best-selling-stage { position:static; height:auto; display:flex; gap:12px; overflow-x:auto; scrollbar-width:none; padding:4px 0 10px; }
+  .best-selling-stage::-webkit-scrollbar { display:none; }
+  .best-card { position:static; width:164px; flex-shrink:0; }
   .explore-section-heading { font-size:32px; }
-  .best-selling-title { font-size:28px; }
+  .best-selling-title { font-size:36px; }
 }
 @media (max-width:768px) {
   .settings-page-layout { flex-direction:column; }
@@ -2127,12 +2129,15 @@ ul, ol { list-style: none; }
   .giveaway-grid { grid-template-columns:1fr; }
   .policy-table-row { grid-template-columns:1fr 1fr; }
   .explore-hero { padding:32px 0 40px; }
-  .explore-section-title { font-size:26px; }
+  .explore-hero-title { font-size:clamp(26px, 7vw, 38px); }
   .explore-section-heading { font-size:26px; }
-  .category-card { width:160px; height:160px; }
-  .explore-product-card { width:180px; }
-  .explore-product-img-wrap { height:180px; }
-  .explore-product-pill { top:148px; }
+  .explore-section { padding:36px 0 40px; }
+  .cat-card { width:200px; height:200px; padding:18px; }
+  .cat-card-label { font-size:18px; }
+  .cat-card-icon { height:48px; }
+  .cat-card-arrow { width:36px; height:36px; bottom:14px; right:14px; }
+  .cprod-imgwrap { height:190px; }
+  .cprod-name { font-size:17px; }
   .footer-logo-text { font-size:36px; }
   .footer-inner { gap:28px; }
 }
@@ -2149,7 +2154,12 @@ ul, ol { list-style: none; }
   .tiers-grid { grid-template-columns:1fr; }
   .order-card-header { flex-direction:column; }
   .not-found-code { font-size:64px; }
-  .best-selling-card { width:100%; }}
+  .best-card { width:140px; }
+  .best-selling-btn { align-self:stretch; justify-content:center; }
+  .cat-card { width:155px; height:172px; padding:14px; }
+  .cat-card-label { font-size:15px; }
+  .explore-hero-head { flex-direction:column; gap:14px; margin-bottom:24px; }
+}
 
 /* =====================================================
    ACCOUNT LAYOUT (sidebar + main)
