@@ -1,0 +1,71 @@
+const API_BASE = process.env.REACT_APP_API_URL
+  ? `${process.env.REACT_APP_API_URL}/api`
+  : 'http://localhost:4000/api';
+
+export { API_BASE };
+
+function getToken() {
+  return localStorage.getItem('token');
+}
+
+function setToken(token) {
+  localStorage.setItem('token', token);
+}
+
+export function logout() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('refreshToken');
+  window.location.href = '/login';
+}
+
+async function refreshAccessToken() {
+  const refreshToken = localStorage.getItem('refreshToken');
+  if (!refreshToken) throw new Error('No refresh token');
+  const res = await fetch(`${API_BASE}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  });
+  if (!res.ok) throw new Error('Refresh failed');
+  const data = await res.json();
+  const token = data.token || data.accessToken;
+  if (token) setToken(token);
+  return token;
+}
+
+export async function apiCall(endpoint, options = {}) {
+  const token = getToken();
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+
+  const res = await fetch(url, {
+    ...options,
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  if (res.status === 401) {
+    try {
+      await refreshAccessToken();
+      return apiCall(endpoint, options);
+    } catch {
+      logout();
+      throw new Error('Session expired');
+    }
+  }
+
+  return res.json();
+}
+
+export const api = {
+  get: (endpoint, params) => {
+    const url = params ? `${endpoint}?${new URLSearchParams(params)}` : endpoint;
+    return apiCall(url);
+  },
+  post: (endpoint, body) => apiCall(endpoint, { method: 'POST', body }),
+  put: (endpoint, body) => apiCall(endpoint, { method: 'PUT', body }),
+  patch: (endpoint, body) => apiCall(endpoint, { method: 'PATCH', body }),
+  delete: (endpoint) => apiCall(endpoint, { method: 'DELETE' }),
+};
