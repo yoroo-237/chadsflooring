@@ -253,29 +253,33 @@ async function adjustWallet(req, res, next) {
 
 async function createUser(req, res, next) {
   try {
-  const { username, password, role = 'customer' } = req.body;
-  if (!username?.trim()) return error(res, 'username is required.', 400);
-  if (!password || password.length < 6) return error(res, 'password must be at least 6 characters.', 400);
-  const VALID_ROLES = ['customer', 'admin', 'moderator'];
-  if (!VALID_ROLES.includes(role)) return error(res, `role must be one of: ${VALID_ROLES.join(', ')}.`, 400);
+    const username = String(req.body.username || '').trim();
+    const password = String(req.body.password || '');
+    const role     = req.body.role || 'customer';
 
-  const existing = await prisma.user.findFirst({ where: { username: { equals: username.trim(), mode: 'insensitive' } } });
-  if (existing) return error(res, 'Username already in use.', 409);
+    if (!username)        return error(res, 'username is required.', 400);
+    if (password.length < 6) return error(res, 'password must be at least 6 characters.', 400);
 
-  const passwordHash = await hashPassword(password);
-  try {
+    const VALID_ROLES = ['customer', 'admin', 'moderator'];
+    if (!VALID_ROLES.includes(role)) return error(res, `role must be one of: ${VALID_ROLES.join(', ')}.`, 400);
+
+    const existing = await prisma.user.findFirst({
+      where:  { username: { equals: username, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (existing) return error(res, 'Username already in use.', 409);
+
+    const passwordHash = await hashPassword(password);
     const user = await prisma.user.create({
-      data:   { username: username.trim(), passwordHash, role },
+      data:   { username, passwordHash, role },
       select: { id: true, username: true, role: true, createdAt: true },
     });
+
     return success(res, { user }, 201);
   } catch (e) {
-    if (e.code === 'P2002') {
-      return error(res, 'Username already in use.', 409);
-    }
-    throw e;
+    if (e.code === 'P2002') return error(res, 'Username already in use.', 409);
+    next(e);
   }
-  } catch (e) { next(e); }
 }
 
 module.exports = { listUsers, getUserById, updateUser, banUser, adjustWallet, createUser };
