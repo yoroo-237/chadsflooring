@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
@@ -77,6 +77,22 @@ function PersonIcon() {
     </svg>
   );
 }
+function HamburgerIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <line x1="3" y1="12" x2="21" y2="12"/>
+      <line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  );
+}
+function XIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+  );
+}
 
 const DEFAULT_NOTIFICATIONS = [
   { id: 1, text: 'Welcome! Browse our latest products.', time: 'Just now' },
@@ -106,6 +122,7 @@ export default function Header({ onCartOpen }) {
   const deadlineM = settings?.shipping_deadline_m ?? 39;
   const [time, setTime] = useState(() => calcTimeUntilDeadline(deadlineH, deadlineM));
   const [notifSeen, setNotifSeen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const inputRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -142,7 +159,53 @@ export default function Header({ onCartOpen }) {
 
   return (
     <header className="header">
+      {/* Mobile nav overlay */}
+      {mobileMenuOpen && (
+        <div className="mobile-nav-overlay" onClick={() => setMobileMenuOpen(false)} aria-hidden="true" />
+      )}
+
+      {/* Mobile nav drawer */}
+      <div className={`mobile-nav-drawer${mobileMenuOpen ? ' open' : ''}`} aria-hidden={!mobileMenuOpen}>
+        <div className="mobile-nav-head">
+          <CannaExpressLogo />
+          <button className="mobile-nav-close" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">
+            <XIcon />
+          </button>
+        </div>
+        <nav className="mobile-nav-links">
+          {NAV_TABS.map(tab => (
+            <Link
+              key={tab.label}
+              to={tab.path}
+              className={`mobile-nav-link${isTabActive(tab.path) ? ' active' : ''}`}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              {tab.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="mobile-nav-footer">
+          <div className="mobile-nav-balance" onClick={() => { navigate('/wallet'); setMobileMenuOpen(false); }}>
+            <LtcIcon />
+            <span>${balance.toFixed(2)}</span>
+          </div>
+          {user
+            ? <button className="mobile-nav-logout" onClick={() => { logout(); setMobileMenuOpen(false); }}>Sign Out</button>
+            : <button className="mobile-nav-logout" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>Sign In</button>
+          }
+        </div>
+      </div>
+
       <div className="header-inner">
+
+        {/* Hamburger — mobile only */}
+        <button
+          className="header-hamburger"
+          onClick={() => setMobileMenuOpen(true)}
+          aria-label="Open navigation menu"
+        >
+          <HamburgerIcon />
+        </button>
 
         {/* Logo */}
         <div className="header-logo">
