@@ -54,7 +54,9 @@
       "PowerShell(taskkill /F /IM node.exe 2>$null; Start-Sleep -Seconds 1; cd m:\\\\Projets\\\\Mario\\\\shop-react\\\\backend; $env:NODE_ENV=\"development\"; node -e \"require\\('dotenv'\\).config\\(\\); require\\('express-async-errors'\\); const app = require\\('./src/app'\\); app.listen\\(4001, \\(\\) => console.log\\('OK'\\)\\); setTimeout\\(\\(\\) => process.exit\\(0\\), 2000\\);\" 2>&1)",
       "PowerShell(cd m:\\\\Projets\\\\Mario\\\\shop-react\\\\backend; $proc = Start-Process -FilePath \"node\" -ArgumentList \"server.js\" -PassThru -WindowStyle Hidden; Start-Sleep -Seconds 3; $h = Invoke-RestMethod -Uri \"http://localhost:4000/api/health\"; $o = try { Invoke-RestMethod -Uri \"http://localhost:4000/api/orders\" -Method Get } catch { $_.Exception.Response.StatusCode.value__ }; $w = try { Invoke-RestMethod -Uri \"http://localhost:4000/api/wallet\" -Method Get } catch { $_.Exception.Response.StatusCode.value__ }; Write-Output \"health=$\\($h.data.status\\) orders=$o wallet=$w\"; $proc.Kill\\(\\))",
       "Bash(python -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(data[0]['text'][:30000]\\)\")",
-      "Bash(npx react-scripts *)"
+      "Bash(npx react-scripts *)",
+      "Bash(node -e \"require\\('axios'\\); console.log\\('axios ok'\\)\")",
+      "Bash(node -e \"require\\('qrcode.react'\\); console.log\\('qrcode.react ok'\\)\")"
     ]
   }
 }

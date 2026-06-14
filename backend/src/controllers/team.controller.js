@@ -1,7 +1,6 @@
 const prisma = require('../db');
 const { success, error } = require('../utils/apiResponse');
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TEAM_LIMIT = 10;
 
 async function getTeam(req, res) {
@@ -28,7 +27,7 @@ async function getTeam(req, res) {
     },
     members: members.map(m => ({
       id:             m.id,
-      inviteEmail:    m.inviteEmail,
+      inviteUsername: m.inviteUsername,
       status:         m.status,
       memberId:       m.memberId   ?? null,
       memberUsername: m.member?.username ?? null,
@@ -41,34 +40,33 @@ async function getTeam(req, res) {
 
 async function inviteMember(req, res) {
   const ownerId = req.user.sub;
-  const { email } = req.body;
+  const { username } = req.body;
 
-  if (!email || !EMAIL_RE.test(email)) {
-    return error(res, 'A valid email address is required.', 400);
+  if (!username?.trim()) {
+    return error(res, 'A username is required.', 400);
   }
 
   const [existing, count] = await Promise.all([
-    prisma.teamMember.findFirst({ where: { ownerId, inviteEmail: email } }),
+    prisma.teamMember.findFirst({ where: { ownerId, inviteUsername: username } }),
     prisma.teamMember.count({ where: { ownerId } }),
   ]);
 
   if (existing) {
-    return error(res, 'This email is already in your team.', 409);
+    return error(res, 'This user is already in your team.', 409);
   }
   if (count >= TEAM_LIMIT) {
     return res.status(422).json({ success: false, error: `Team limit of ${TEAM_LIMIT} members reached.` });
   }
 
-  // Auto-link if a user account exists with this email
-  const linkedUser = await prisma.user.findUnique({ where: { email } });
+  const linkedUser = await prisma.user.findUnique({ where: { username } });
 
   const member = await prisma.teamMember.create({
     data: {
       ownerId,
-      inviteEmail: email,
-      status:      linkedUser ? 'active'  : 'pending',
-      memberId:    linkedUser ? linkedUser.id : null,
-      joinedAt:    linkedUser ? new Date() : null,
+      inviteUsername: username,
+      status:         linkedUser ? 'active'  : 'pending',
+      memberId:       linkedUser ? linkedUser.id : null,
+      joinedAt:       linkedUser ? new Date() : null,
     },
     include: { member: { select: { id: true, username: true } } },
   });

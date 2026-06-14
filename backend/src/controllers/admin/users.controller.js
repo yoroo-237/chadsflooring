@@ -35,10 +35,7 @@ async function listUsers(req, res) {
   if (role !== undefined)     where.role     = role;
   if (isActive !== undefined) where.isActive = isActive === 'true';
   if (search) {
-    where.OR = [
-      { username: { contains: search, mode: 'insensitive' } },
-      { email:    { contains: search, mode: 'insensitive' } },
-    ];
+    where.username = { contains: search, mode: 'insensitive' };
   }
   if (tier) {
     const range = tierToSpentFilter(tier);
@@ -58,7 +55,7 @@ async function listUsers(req, res) {
       skip,
       take: limit,
       select: {
-        id: true, username: true, email: true, role: true,
+        id: true, username: true, role: true,
         isActive: true, balance: true, points: true, totalSpent: true,
         markupPct: true, createdAt: true, lastLoginAt: true, avatarUrl: true,
         _count: { select: { orders: true } },
@@ -84,7 +81,7 @@ async function getUserById(req, res) {
   const user = await prisma.user.findUnique({
     where: { id },
     select: {
-      id: true, username: true, email: true, role: true,
+      id: true, username: true, role: true,
       isActive: true, balance: true, points: true, totalSpent: true,
       markupPct: true, createdAt: true, lastLoginAt: true, avatarUrl: true,
       bio: true, telegramHandle: true, signalDetails: true, sessionDetails: true,

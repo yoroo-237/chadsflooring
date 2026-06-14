@@ -6,9 +6,7 @@ const {
   hashPassword,
   comparePassword,
   validatePasswordStrength,
-  generatePasswordResetToken,
 } = require('../services/auth.service');
-const { sendPasswordResetEmail } = require('../services/mail.service');
 
 const WELCOME_NOTIFICATIONS = [
   { type: 'welcome', title: 'Welcome! Browse our latest products.' },
@@ -18,11 +16,11 @@ const WELCOME_NOTIFICATIONS = [
 
 // POST /api/auth/register
 async function register(req, res) {
-  const { username, email, password } = req.body;
+  const { username, password } = req.body;
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findUnique({ where: { username } });
   if (existing) {
-    return error(res, 'Email already in use.', 409);
+    return error(res, 'Username already taken.', 409);
   }
 
   const strength = validatePasswordStrength(password);
@@ -33,7 +31,7 @@ async function register(req, res) {
   const passwordHash = await hashPassword(password);
 
   const user = await prisma.user.create({
-    data: { username, email, passwordHash },
+    data: { username, passwordHash },
   });
 
   await prisma.notification.createMany({
@@ -43,7 +41,7 @@ async function register(req, res) {
   const { accessToken, refreshToken } = generateTokens(user);
 
   return success(res, {
-    user: { id: user.id, username: user.username, email: user.email, role: user.role },
+    user: { id: user.id, username: user.username, role: user.role },
     token: accessToken,
     refreshToken,
   }, 201);
@@ -51,9 +49,9 @@ async function register(req, res) {
 
 // POST /api/auth/login
 async function login(req, res) {
-  const { email, password } = req.body;
+  const { username, password } = req.body;
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { username } });
   if (!user) {
     return error(res, 'Invalid credentials.', 401);
   }
@@ -76,12 +74,11 @@ async function login(req, res) {
 
   return success(res, {
     user: {
-      id:      user.id,
+      id:       user.id,
       username: user.username,
-      email:   user.email,
-      role:    user.role,
-      balance: user.balance,
-      points:  user.points,
+      role:     user.role,
+      balance:  user.balance,
+      points:   user.points,
     },
     token: accessToken,
     refreshToken,
@@ -108,7 +105,7 @@ async function refresh(req, res) {
   }
 
   const accessToken = jwt.sign(
-    { sub: user.id, email: user.email, role: user.role },
+    { sub: user.id, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: '15m' }
   );
@@ -121,63 +118,4 @@ function logout(req, res) {
   return success(res, { message: 'Logged out successfully.' });
 }
 
-// POST /api/auth/forgot-password
-async function forgotPassword(req, res) {
-  const { email } = req.body;
-
-  // Always return 200 regardless of whether the email exists (security)
-  const user = await prisma.user.findUnique({ where: { email } });
-
-  if (user) {
-    const resetToken  = generatePasswordResetToken();
-    const resetExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        passwordResetToken:  resetToken,
-        passwordResetExpiry: resetExpiry,
-      },
-    });
-
-    await sendPasswordResetEmail(email, resetToken);
-  }
-
-  return success(res, { message: 'If this email exists, a reset link was sent.' });
-}
-
-// POST /api/auth/reset-password
-async function resetPassword(req, res) {
-  const { token, password } = req.body;
-
-  const user = await prisma.user.findFirst({
-    where: {
-      passwordResetToken:  token,
-      passwordResetExpiry: { gt: new Date() },
-    },
-  });
-
-  if (!user) {
-    return error(res, 'Invalid or expired reset token.', 400);
-  }
-
-  const strength = validatePasswordStrength(password);
-  if (!strength.isValid) {
-    return error(res, 'Password is too weak.', 400);
-  }
-
-  const passwordHash = await hashPassword(password);
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      passwordHash,
-      passwordResetToken:  null,
-      passwordResetExpiry: null,
-    },
-  });
-
-  return success(res, { message: 'Password updated successfully.' });
-}
-
-module.exports = { register, login, refresh, logout, forgotPassword, resetPassword };
+module.exports = { register, login, refresh, logout };

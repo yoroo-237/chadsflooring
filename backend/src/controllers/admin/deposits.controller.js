@@ -20,7 +20,7 @@ async function listDeposits(req, res) {
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
-      include: { user: { select: { id: true, username: true, email: true } } },
+      include: { user: { select: { id: true, username: true } } },
     }),
   ]);
 

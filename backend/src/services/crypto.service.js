@@ -1,56 +1,90 @@
-const crypto = require('crypto');
+const axios = require('axios');
+const { HDNodeWallet } = require('ethers');
 
-async function generateDepositAddress(currency, userId, depositId) {
+const TOKEN = process.env.BLOCKCYPHER_TOKEN;
+const CALLBACK_URL = `${process.env.RAILWAY_PUBLIC_URL}/api/webhooks/blockcypher`;
+
+const CHAIN = { BTC: 'btc/main', LTC: 'ltc/main', DOGE: 'doge/main' };
+
+async function generateDepositAddress(currency, depositId) {
   switch (currency) {
-    case 'BTC':  return generateBtcAddress(userId, depositId);
-    case 'ETH':  return generateEthAddress(depositId);
-    case 'DOGE': return process.env.DOGE_DEPOSIT_ADDRESS || '';
-    case 'LTC':  return process.env.LTC_DEPOSIT_ADDRESS  || '';
-    case 'XMR':  return process.env.XMR_DEPOSIT_ADDRESS  || '';
+    case 'BTC':
+    case 'LTC':
+    case 'DOGE': {
+      const chain = CHAIN[currency];
+      const addrRes = await axios.post(
+        `https://api.blockcypher.com/v1/${chain}/addrs?token=${TOKEN}`
+      );
+      const address = addrRes.data.address;
+
+      let hookId = null;
+      if (TOKEN) {
+        try {
+          const hookRes = await axios.post(
+            `https://api.blockcypher.com/v1/${chain}/hooks?token=${TOKEN}`,
+            {
+              event:         'confirmed-tx',
+              address,
+              url:           CALLBACK_URL,
+              confirmations: 1,
+            }
+          );
+          hookId = hookRes.data.id || null;
+        } catch (e) {
+          console.error(`BlockCypher webhook register failed (${currency}):`, e.message);
+        }
+      }
+
+      return { address, hookId, ethIndex: null };
+    }
+
+    case 'ETH': {
+      const phrase = process.env.ETH_HD_SEED;
+      if (!phrase) throw Object.assign(new Error('ETH_HD_SEED not configured'), { status: 500 });
+
+      const wallet  = HDNodeWallet.fromPhrase(phrase, undefined, `m/44'/60'/0'/0/${depositId}`);
+      const address = wallet.address;
+
+      if (process.env.ALCHEMY_AUTH_TOKEN && process.env.ALCHEMY_WEBHOOK_ID) {
+        try {
+          await axios.patch(
+            'https://dashboard.alchemy.com/api/update-webhook-addresses',
+            {
+              webhook_id:          process.env.ALCHEMY_WEBHOOK_ID,
+              addresses_to_add:    [address],
+              addresses_to_remove: [],
+            },
+            { headers: { 'X-Alchemy-Token': process.env.ALCHEMY_AUTH_TOKEN } }
+          );
+        } catch (e) {
+          console.error('Alchemy webhook address registration failed:', e.message);
+        }
+      }
+
+      return { address, hookId: null, ethIndex: depositId };
+    }
+
+    case 'XMR': {
+      const address = process.env.XMR_DEPOSIT_ADDRESS;
+      if (!address) throw Object.assign(new Error('XMR_DEPOSIT_ADDRESS not configured'), { status: 500 });
+      return { address, hookId: null, ethIndex: null };
+    }
+
     default:
       throw Object.assign(new Error('Unsupported currency.'), { status: 422 });
   }
 }
 
-async function generateBtcAddress(userId, depositId) {
-  const token = process.env.BLOCKCYPHER_TOKEN;
-  if (token) {
-    try {
-      const res = await fetch(
-        `https://api.blockcypher.com/v1/btc/main/addrs?token=${token}`,
-        { method: 'POST' }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (data.address) return data.address;
-      }
-    } catch {
-      // fall through to deterministic fallback
-    }
+async function deleteBlockCypherWebhook(currency, hookId) {
+  const chain = CHAIN[currency];
+  if (!chain || !hookId || !TOKEN) return;
+  try {
+    await axios.delete(
+      `https://api.blockcypher.com/v1/${chain}/hooks/${hookId}?token=${TOKEN}`
+    );
+  } catch (e) {
+    console.error(`BlockCypher webhook delete failed (${currency} / ${hookId}):`, e.message);
   }
-  const hash = crypto
-    .createHash('sha256')
-    .update(`${userId}${depositId}btc`)
-    .digest('hex');
-  return '1' + hash.substring(0, 34);
 }
 
-function generateEthAddress(depositId) {
-  const phrase = process.env.ETH_HD_SEED;
-  if (phrase) {
-    try {
-      const { HDNodeWallet } = require('ethers');
-      const wallet = HDNodeWallet.fromPhrase(phrase, undefined, `m/44'/60'/0'/0/${depositId}`);
-      return wallet.address;
-    } catch {
-      // fall through to deterministic fallback
-    }
-  }
-  const hash = crypto
-    .createHash('sha256')
-    .update(`eth-deposit-${depositId}`)
-    .digest('hex');
-  return '0x' + hash.substring(0, 40);
-}
-
-module.exports = { generateDepositAddress };
+module.exports = { generateDepositAddress, deleteBlockCypherWebhook };

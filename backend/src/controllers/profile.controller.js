@@ -22,7 +22,6 @@ async function getProfile(req, res) {
 
   return success(res, {
     id:               user.id,
-    email:            user.email,
     username:         user.username,
     markupPct:        parseFloat(user.markupPct),
     signalDetails:    user.signalDetails,

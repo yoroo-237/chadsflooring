@@ -1,50 +1,68 @@
 const crypto = require('crypto');
-const prisma = require('../db');
-const { confirmDepositManually } = require('../services/wallet.service');
+const prisma  = require('../db');
+const { confirmDepositManually }   = require('../services/wallet.service');
+const { deleteBlockCypherWebhook } = require('../services/crypto.service');
+
+const COINGECKO_ID = {
+  BTC:  'bitcoin',
+  LTC:  'litecoin',
+  DOGE: 'dogecoin',
+  ETH:  'ethereum',
+};
 
 async function getCoinUsdPrice(coinId) {
-  const res = await fetch(
-    `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`
-  );
-  const data = await res.json();
-  return data[coinId]?.usd || null;
+  try {
+    const res  = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`);
+    const data = await res.json();
+    return data[coinId]?.usd || null;
+  } catch {
+    return null;
+  }
 }
 
+// POST /api/webhooks/blockcypher
 async function blockcypher(req, res) {
-  // Always respond 200 — never let BlockCypher retry indefinitely
+  res.status(200).json({ received: true }); // respond immediately — BlockCypher retries on timeout
+
   try {
-    const sig = req.headers['x-blockcypher-signature'];
-    if (sig && process.env.BLOCKCYPHER_TOKEN) {
-      const expected = crypto
-        .createHmac('sha256', process.env.BLOCKCYPHER_TOKEN)
-        .update(JSON.stringify(req.body))
-        .digest('hex');
-      if (sig !== expected) return res.status(200).json({ received: true });
+    const { addresses, outputs, confirmations, hash } = req.body || {};
+    if (!addresses?.length || !outputs?.length || (confirmations ?? 0) < 1) return;
+
+    for (const address of addresses) {
+      const deposit = await prisma.deposit.findFirst({
+        where: {
+          address,
+          currency: { in: ['BTC', 'LTC', 'DOGE'] },
+          status:   { in: ['awaiting', 'partial'] },
+        },
+      });
+      if (!deposit) continue;
+
+      // Sum satoshis from outputs directed to our address
+      const satoshis = outputs
+        .filter(o => Array.isArray(o.addresses) && o.addresses.includes(address))
+        .reduce((sum, o) => sum + (o.value || 0), 0);
+      if (satoshis <= 0) continue;
+
+      const price = await getCoinUsdPrice(COINGECKO_ID[deposit.currency]);
+      if (!price) continue;
+
+      const usdAmount = parseFloat(((satoshis / 1e8) * price).toFixed(2));
+      await confirmDepositManually(deposit.id, usdAmount, null, hash || null);
+
+      if (deposit.hookId) {
+        await deleteBlockCypherWebhook(deposit.currency, deposit.hookId);
+      }
     }
-
-    const { address, total_received, confirmations } = req.body || {};
-    if (!address || !total_received || confirmations < 1) {
-      return res.status(200).json({ received: true });
-    }
-
-    const deposit = await prisma.deposit.findFirst({
-      where: { address, currency: 'BTC', status: { in: ['awaiting', 'partial'] } },
-    });
-    if (!deposit) return res.status(200).json({ received: true });
-
-    const btcUsdPrice = await getCoinUsdPrice('bitcoin');
-    if (!btcUsdPrice) return res.status(200).json({ received: true });
-
-    const btcAmount = total_received / 1e8;
-    const usdAmount = parseFloat((btcAmount * btcUsdPrice).toFixed(2));
-    await confirmDepositManually(deposit.id, usdAmount, null);
   } catch (e) {
     console.error('BlockCypher webhook error:', e.message);
   }
-  return res.status(200).json({ received: true });
 }
 
+// POST /api/webhooks/alchemy
 async function alchemy(req, res) {
+  res.status(200).json({ received: true }); // respond immediately
+
   try {
     const sig = req.headers['x-alchemy-signature'];
     if (sig && process.env.ALCHEMY_SIGNING_KEY) {
@@ -52,14 +70,16 @@ async function alchemy(req, res) {
         .createHmac('sha256', process.env.ALCHEMY_SIGNING_KEY)
         .update(JSON.stringify(req.body))
         .digest('hex');
-      if (sig !== expected) return res.status(200).json({ received: true });
+      if (sig !== expected) return;
     }
 
+    if (req.body?.type !== 'ADDRESS_ACTIVITY') return;
+
     const activity = req.body?.event?.activity;
-    if (!Array.isArray(activity)) return res.status(200).json({ received: true });
+    if (!Array.isArray(activity)) return;
 
     for (const act of activity) {
-      if (act.asset !== 'ETH' || act.category !== 'external') continue;
+      if (act.category !== 'external' || act.asset !== 'ETH') continue;
       const toAddress = act.toAddress?.toLowerCase();
       if (!toAddress || !act.value) continue;
 
@@ -72,16 +92,15 @@ async function alchemy(req, res) {
       });
       if (!deposit) continue;
 
-      const ethUsdPrice = await getCoinUsdPrice('ethereum');
-      if (!ethUsdPrice) continue;
+      const price = await getCoinUsdPrice('ethereum');
+      if (!price) continue;
 
-      const usdAmount = parseFloat((parseFloat(act.value) * ethUsdPrice).toFixed(2));
-      await confirmDepositManually(deposit.id, usdAmount, null);
+      const usdAmount = parseFloat((parseFloat(act.value) * price).toFixed(2));
+      await confirmDepositManually(deposit.id, usdAmount, null, act.hash || null);
     }
   } catch (e) {
     console.error('Alchemy webhook error:', e.message);
   }
-  return res.status(200).json({ received: true });
 }
 
 module.exports = { blockcypher, alchemy };

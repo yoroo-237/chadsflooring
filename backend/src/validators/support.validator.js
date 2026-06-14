@@ -1,7 +1,6 @@
 const { z } = require('zod');
 
 const createTicketSchema = z.object({
-  email:   z.string().email(),
   category: z.enum([
     'General', 'Order Issue', 'Payment', 'Shipping',
     'Product Question', 'Account', 'Technical', 'Other',

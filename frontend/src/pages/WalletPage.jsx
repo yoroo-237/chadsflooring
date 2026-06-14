@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useApp } from '../context/AppContext';
 import AccountSidebar from '../components/AccountSidebar';
 import { api } from '../utils/api';
 
 const CURRENCIES = [
-  { key: 'BTC',  label: 'Bitcoin',  note: 'suggested fee: 4 sat/vb' },
-  { key: 'DOGE', label: 'Dogecoin', note: '' },
-  { key: 'LTC',  label: 'Litecoin', note: '' },
-  { key: 'XMR',  label: 'Monero',   note: '' },
+  { key: 'BTC',  label: 'Bitcoin',  color: '#f7931a', note: 'suggested fee: 4 sat/vb' },
+  { key: 'LTC',  label: 'Litecoin', color: '#345d9d', note: '' },
+  { key: 'DOGE', label: 'Dogecoin', color: '#c2a633', note: '' },
+  { key: 'ETH',  label: 'Ethereum', color: '#627eea', note: '' },
+  { key: 'XMR',  label: 'Monero',   color: '#ff6600', note: '' },
 ];
+
+const CURRENCY_MSG = {
+  XMR: 'XMR deposits are confirmed manually by our team. Contact support after sending.',
+  default: 'Your balance will be credited automatically after 1 blockchain confirmation (~10-20 min).',
+};
 
 const STATUS_ICONS = {
   BTC: () => (
@@ -19,6 +26,9 @@ const STATUS_ICONS = {
   ),
   LTC: () => (
     <svg width="18" height="18" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#345D9D"/><path d="M13.5 20.5l1-4-1.5.5.5-2 1.5-.5 2-8h4l-1.5 6 1.5-.5-.5 2-1.5.5-1 4h7l-.5 2h-11l.5-2z" fill="white"/></svg>
+  ),
+  ETH: () => (
+    <svg width="18" height="18" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#627EEA"/><path d="M16 7l-7 9.5 7-3.5 7 3.5L16 7z" fill="white" opacity="0.7"/><path d="M16 17.5L9 16.5l7 4 7-4-7 1z" fill="white"/><path d="M16 22l-7-4.5 7 8.5 7-8.5L16 22z" fill="white" opacity="0.7"/></svg>
   ),
   XMR: () => (
     <svg width="18" height="18" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#FF6600"/><path d="M16 8l-8 8v4h3v-4.5l5 5 5-5V20h3v-4l-8-8z" fill="white"/></svg>
@@ -69,21 +79,39 @@ const DEPOSIT_TERMS = [
   'Funds sent to the address of a cancelled deposit will be permanently lost with no ability to recover.',
 ];
 
+function formatCountdown(expiresAt) {
+  const diff = new Date(expiresAt) - Date.now();
+  if (diff <= 0) return 'Expired';
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 export default function WalletPage() {
   const { balance, setBalance, deposits, setDeposits, transactions, setTransactions, showToast } = useApp();
   const [selectedCurrency, setSelectedCurrency] = useState('DOGE');
   const [activeTab, setActiveTab]   = useState(0);
   const [copied, setCopied]         = useState(false);
-  const [modalOpen, setModalOpen]   = useState(false);
+  const [modalStep, setModalStep]   = useState(null); // null | 'select' | 'address'
   const [agreed, setAgreed]         = useState(false);
   const [currentDeposit, setCurrentDeposit] = useState(null);
   const [creating, setCreating]     = useState(false);
+  const [timeLeft, setTimeLeft]     = useState('');
 
   useEffect(() => {
     api.get('/wallet/balance').then(d => { if (d?.balance != null) setBalance(Number(d.balance)); }).catch(() => {});
     api.get('/wallet/deposits').then(d => setDeposits(d.deposits || d || [])).catch(() => {});
     api.get('/wallet/transactions').then(d => setTransactions(d.transactions || d || [])).catch(() => {});
   }, [setBalance, setDeposits, setTransactions]);
+
+  // Countdown timer for Step 2 modal
+  useEffect(() => {
+    if (!currentDeposit?.expiresAt || modalStep !== 'address') return;
+    setTimeLeft(formatCountdown(currentDeposit.expiresAt));
+    const id = setInterval(() => setTimeLeft(formatCountdown(currentDeposit.expiresAt)), 1000);
+    return () => clearInterval(id);
+  }, [currentDeposit?.expiresAt, modalStep]);
 
   const handleCopy = (text) => {
     navigator.clipboard?.writeText(text).then(() => {
@@ -96,12 +124,11 @@ export default function WalletPage() {
     setCreating(true);
     try {
       const data = await api.post('/wallet/deposit', { currency: selectedCurrency });
-      const dep = data.deposit || data;
+      const dep  = data.deposit || data;
       setCurrentDeposit(dep);
       setDeposits(prev => [dep, ...prev]);
-      setModalOpen(false);
       setAgreed(false);
-      showToast('Deposit address generated', 'success');
+      setModalStep('address');
     } catch (err) {
       showToast(err.message || 'Failed to create deposit', 'error');
     } finally {
@@ -109,7 +136,14 @@ export default function WalletPage() {
     }
   };
 
+  const closeModal = () => {
+    setModalStep(null);
+    setAgreed(false);
+  };
+
   const depositAddress = currentDeposit?.address || '';
+  const depositCurrency = currentDeposit?.currency || selectedCurrency;
+  const currencyColor = CURRENCIES.find(c => c.key === depositCurrency)?.color || '#888';
 
   return (
     <main className="main-content">
@@ -177,13 +211,13 @@ export default function WalletPage() {
                 </div>
               </div>
 
-              <button className="credits-new-deposit-btn" onClick={() => setModalOpen(true)}>
-                New Deposit
+              <button className="credits-new-deposit-btn" onClick={() => setModalStep('select')}>
+                Add Funds
               </button>
 
-              {currentDeposit && depositAddress && (
+              {currentDeposit && depositAddress && depositAddress !== 'pending' && (
                 <div className="credits-address-section">
-                  <div className="credits-address-label">Your {currentDeposit.currency || selectedCurrency} deposit address</div>
+                  <div className="credits-address-label">Your {depositCurrency} deposit address</div>
                   <div className="credits-address-row">
                     <code className="credits-address-code">{depositAddress}</code>
                     <button className={`credits-copy-btn${copied ? ' copied' : ''}`} onClick={() => handleCopy(depositAddress)}>
@@ -261,23 +295,129 @@ export default function WalletPage() {
         </div>
       </div>
 
-      {/* Deposits terms modal */}
-      {modalOpen && (
-        <div className="modal-overlay" onClick={() => setModalOpen(false)}>
+      {/* ── Step 1: currency selection + terms ─────────────────────────────────── */}
+      {modalStep === 'select' && (
+        <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setModalOpen(false)}><CloseIcon /></button>
-            <h3 className="modal-title">Deposits</h3>
-            <p className="modal-subtitle">Please be aware of the following before starting a new deposit.</p>
+            <button className="modal-close" onClick={closeModal}><CloseIcon /></button>
+            <h3 className="modal-title">Add Funds</h3>
+            <p className="modal-subtitle">Select a cryptocurrency to generate your deposit address.</p>
+
+            {/* Currency badges */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '16px 0' }}>
+              {CURRENCIES.map(c => (
+                <button
+                  key={c.key}
+                  onClick={() => setSelectedCurrency(c.key)}
+                  style={{
+                    display:      'flex',
+                    alignItems:   'center',
+                    gap:          6,
+                    padding:      '6px 14px',
+                    borderRadius: 20,
+                    border:       `2px solid ${selectedCurrency === c.key ? c.color : 'transparent'}`,
+                    background:   selectedCurrency === c.key ? `${c.color}22` : 'var(--bg-card, #f5f5f5)',
+                    color:        selectedCurrency === c.key ? c.color : 'inherit',
+                    fontWeight:   selectedCurrency === c.key ? 700 : 400,
+                    cursor:       'pointer',
+                    fontSize:     13,
+                    transition:   'all .15s',
+                  }}
+                >
+                  {React.createElement(STATUS_ICONS[c.key])}
+                  {c.key}
+                </button>
+              ))}
+            </div>
+
             <ol className="deposit-terms">
               {DEPOSIT_TERMS.map((t, i) => <li key={i}>{i + 1}. {t}</li>)}
             </ol>
+
             <label className="deposit-agree">
               <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} />
-              <span>By checking this box, you agree to the above terms</span>
+              <span>I have read and agree to the deposit terms</span>
             </label>
-            <button className="deposit-create-btn" disabled={!agreed || creating} onClick={handleCreateDeposit}>
-              {creating ? 'Creating…' : 'Create Deposit'}
+
+            <button
+              className="deposit-create-btn"
+              disabled={!agreed || creating}
+              onClick={handleCreateDeposit}
+            >
+              {creating ? 'Generating…' : 'Generate Address'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 2: QR code + address + countdown ──────────────────────────────── */}
+      {modalStep === 'address' && currentDeposit && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeModal}><CloseIcon /></button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>Deposit</h3>
+              <span style={{
+                background:   currencyColor,
+                color:        '#fff',
+                borderRadius: 12,
+                padding:      '2px 10px',
+                fontWeight:   700,
+                fontSize:     13,
+              }}>
+                {depositCurrency}
+              </span>
+            </div>
+
+            <p className="modal-subtitle" style={{ marginBottom: 16 }}>
+              Send {depositCurrency} to the address below. Do not reuse this address.
+            </p>
+
+            {/* QR code */}
+            <div style={{ display: 'flex', justifyContent: 'center', margin: '12px 0' }}>
+              <QRCodeSVG value={depositAddress} size={180} />
+            </div>
+
+            {/* Address + copy */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '12px 0', flexWrap: 'wrap' }}>
+              <code style={{
+                flex:       1,
+                background: 'var(--bg-card, #f5f5f5)',
+                padding:    '8px 12px',
+                borderRadius: 8,
+                fontSize:   12,
+                wordBreak:  'break-all',
+                lineHeight: 1.5,
+              }}>
+                {depositAddress}
+              </code>
+              <button
+                className={`credits-copy-btn${copied ? ' copied' : ''}`}
+                onClick={() => handleCopy(depositAddress)}
+                style={{ flexShrink: 0 }}
+              >
+                {copied ? '✓' : <CopyIcon />}
+              </button>
+            </div>
+
+            {/* Countdown */}
+            <div style={{ textAlign: 'center', margin: '12px 0' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Expires in </span>
+              <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 16 }}>{timeLeft}</span>
+            </div>
+
+            {/* Message */}
+            <p style={{
+              fontSize:     13,
+              color:        'var(--text-muted)',
+              background:   'var(--bg-card, #f5f5f5)',
+              borderRadius: 8,
+              padding:      '10px 14px',
+              margin:       0,
+            }}>
+              {CURRENCY_MSG[depositCurrency] || CURRENCY_MSG.default}
+            </p>
           </div>
         </div>
       )}

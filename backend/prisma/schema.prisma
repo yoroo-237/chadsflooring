@@ -16,9 +16,8 @@ datasource db {
 
 model User {
   id               Int       @id @default(autoincrement())
-  email            String    @unique
   passwordHash     String
-  username         String    @default("Guest User")
+  username         String    @unique
   markupPct        Decimal   @default(0) @db.Decimal(5, 2)
   signalDetails    String?
   sessionDetails   String?
@@ -61,7 +60,6 @@ model User {
   teamOwned       TeamMember[]    @relation("TeamOwner")
   teamMemberships TeamMember[]    @relation("TeamMember")
 
-  @@index([email])
   @@index([role])
 }
 
@@ -80,9 +78,9 @@ model ApiKey {
 
 model TeamMember {
   id          Int       @id @default(autoincrement())
-  ownerId     Int
-  memberId    Int?
-  inviteEmail String
+  ownerId        Int
+  memberId       Int?
+  inviteUsername String
   status      String    @default("pending")
   invitedAt   DateTime  @default(now())
   joinedAt    DateTime?
@@ -279,6 +277,8 @@ model Deposit {
   transactionId  Int?      @unique
   currency       String
   address        String
+  hookId         String?
+  ethIndex       Int?
   amountExpected Decimal?  @db.Decimal(18, 8)
   amountReceived Decimal   @default(0) @db.Decimal(18, 8)
   usdCredited    Decimal   @default(0) @db.Decimal(10, 2)
@@ -299,7 +299,6 @@ model SupportTicket {
   id         Int      @id @default(autoincrement())
   frontendId String?  @unique
   userId     Int?
-  email      String
   category   String   @default("General")
   subject    String
   status     String   @default("open")

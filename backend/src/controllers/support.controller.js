@@ -4,23 +4,14 @@ const { formatTicketId } = require('../utils/formatters');
 
 function checkOwnership(ticket, req) {
   if (req.user && ticket.userId === req.user.id) return true;
-  const email = req.query.email || req.body?.email;
-  if (email && ticket.email === email) return true;
   return false;
 }
 
 async function listTickets(req, res) {
-  let where;
-  if (req.user) {
-    where = { userId: req.user.id };
-  } else if (req.query.email) {
-    where = { email: req.query.email };
-  } else {
-    return error(res, 'Authentication or ?email required.', 401);
-  }
+  if (!req.user) return error(res, 'Authentication required.', 401);
 
   const tickets = await prisma.supportTicket.findMany({
-    where,
+    where:   { userId: req.user.id },
     orderBy: { createdAt: 'desc' },
     select: {
       id: true, frontendId: true, category: true,
@@ -34,12 +25,11 @@ async function listTickets(req, res) {
 }
 
 async function createTicket(req, res) {
-  const { email, category, subject, message } = req.body;
+  const { category, subject, message } = req.body;
 
   const ticket = await prisma.supportTicket.create({
     data: {
       frontendId: formatTicketId(Date.now()),
-      email,
       category,
       subject,
       userId: req.user?.id || null,

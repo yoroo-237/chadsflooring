@@ -46,7 +46,7 @@ async function getWallet(userId) {
 }
 
 async function createDeposit(userId, currency) {
-  const ALLOWED = ['BTC', 'DOGE', 'LTC', 'XMR'];
+  const ALLOWED = ['BTC', 'LTC', 'DOGE', 'ETH', 'XMR'];
   if (!ALLOWED.includes(currency)) {
     throw Object.assign(new Error('Unsupported currency.'), { status: 422 });
   }
@@ -55,16 +55,15 @@ async function createDeposit(userId, currency) {
   const expiryHours = parseInt(setting?.value) || 12;
   const expiresAt = new Date(Date.now() + expiryHours * 3600 * 1000);
 
-  // Create deposit first to get the DB id (needed for address derivation)
   const deposit = await prisma.deposit.create({
-    data: { userId, currency, address: '', status: 'awaiting', expiresAt },
+    data: { userId, currency, address: 'pending', status: 'awaiting', expiresAt },
   });
 
-  const address = await generateDepositAddress(currency, userId, deposit.id);
+  const { address, hookId, ethIndex } = await generateDepositAddress(currency, deposit.id);
 
   const updated = await prisma.deposit.update({
     where: { id: deposit.id },
-    data:  { address },
+    data:  { address, hookId: hookId || null, ethIndex: ethIndex || null },
   });
 
   return {
@@ -75,7 +74,7 @@ async function createDeposit(userId, currency) {
   };
 }
 
-async function confirmDepositManually(depositId, usdAmount, adminId) {
+async function confirmDepositManually(depositId, usdAmount, adminId, txHash = null) {
   const deposit = await prisma.deposit.findUnique({ where: { id: depositId } });
   if (!deposit) throw Object.assign(new Error('Deposit not found.'), { status: 404 });
   if (!['awaiting', 'partial'].includes(deposit.status)) {
@@ -92,6 +91,7 @@ async function confirmDepositManually(depositId, usdAmount, adminId) {
         currency:   deposit.currency,
         status:     'confirmed',
         note:       `Deposit #${deposit.id}`,
+        ...(txHash ? { txHash } : {}),
       },
     });
 
