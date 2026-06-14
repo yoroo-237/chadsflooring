@@ -2,10 +2,10 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "cd backend && npm install && npx prisma generate"
+    "buildCommand": "npm install && npx prisma generate"
   },
   "deploy": {
-    "startCommand": "cd backend && node server.js",
+    "startCommand": "node server.js",
     "healthcheckPath": "/api/health"
   }
 }
