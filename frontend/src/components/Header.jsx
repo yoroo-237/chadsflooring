@@ -123,6 +123,8 @@ export default function Header({ onCartOpen }) {
   const [time, setTime] = useState(() => calcTimeUntilDeadline(deadlineH, deadlineM));
   const [notifSeen, setNotifSeen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
   const inputRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -130,6 +132,18 @@ export default function Header({ onCartOpen }) {
   useEffect(() => {
     setTime(calcTimeUntilDeadline(deadlineH, deadlineM));
   }, [deadlineH, deadlineM]);
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    if (!profileOpen) return;
+    const handler = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [profileOpen]);
 
   useEffect(() => {
     const iv = setInterval(() => {
@@ -301,18 +315,23 @@ export default function Header({ onCartOpen }) {
             </div>
           </div>
 
-          <div className="profile-wrap">
-            <button className="profile-btn" aria-label="Account menu">
+          <div className="profile-wrap" ref={profileRef}>
+            <button
+              className="profile-btn"
+              aria-label="Account menu"
+              aria-expanded={profileOpen}
+              onClick={() => setProfileOpen(o => !o)}
+            >
               <PersonIcon />
             </button>
-            <div className="profile-dropdown">
-              {user && <div className="profile-item" style={{ fontWeight: 700, pointerEvents: 'none' }}>{user.username || user.email}</div>}
-              <div className="profile-item" onClick={() => navigate('/orders')}>Orders</div>
-              <div className="profile-item" onClick={() => navigate('/profile')}>Profile</div>
-              <div className="profile-item" onClick={() => navigate('/support')}>Support</div>
+            <div className={`profile-dropdown${profileOpen ? ' open' : ''}`}>
+              {user && <div className="profile-item" style={{ fontWeight: 700, pointerEvents: 'none' }}>{user.username}</div>}
+              <div className="profile-item" onClick={() => { navigate('/orders'); setProfileOpen(false); }}>Orders</div>
+              <div className="profile-item" onClick={() => { navigate('/profile'); setProfileOpen(false); }}>Profile</div>
+              <div className="profile-item" onClick={() => { navigate('/support'); setProfileOpen(false); }}>Support</div>
               {!user
-                ? <div className="profile-item" onClick={() => navigate('/login')}>Sign In</div>
-                : <div className="profile-item danger" onClick={logout}>Logout</div>
+                ? <div className="profile-item" onClick={() => { navigate('/login'); setProfileOpen(false); }}>Sign In</div>
+                : <div className="profile-item danger" onClick={() => { logout(); setProfileOpen(false); }}>Logout</div>
               }
             </div>
           </div>
