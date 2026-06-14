@@ -18,6 +18,10 @@ async function listTickets(req, res) {
 
   const skip = (page - 1) * limit;
 
+  if (req.query.search) {
+    where.subject = { contains: req.query.search, mode: 'insensitive' };
+  }
+
   const [total, tickets] = await Promise.all([
     prisma.supportTicket.count({ where }),
     prisma.supportTicket.findMany({
@@ -38,6 +42,7 @@ async function listTickets(req, res) {
       lastMessage: t.messages[0] || null,
       messages:    undefined,
     })),
+    total,
     pagination: buildPagination(page, limit, total),
   });
 }
@@ -54,7 +59,7 @@ async function createMessage(req, res) {
   const msg = await prisma.supportMessage.create({
     data: {
       ticketId:   id,
-      userId:     req.user.sub,
+      userId:     req.user.id,
       body:       message.trim(),
       isStaff:    true,
       isInternal: Boolean(isInternal),
@@ -119,4 +124,10 @@ async function updatePriority(req, res) {
   return success(res, { priority });
 }
 
-module.exports = { listTickets, createMessage, updateTicketStatus, assignTicket, updatePriority };
+async function getStats(req, res) {
+  const statuses = ['open', 'in_progress', 'resolved', 'closed'];
+  const counts = await Promise.all(statuses.map(s => prisma.supportTicket.count({ where: { status: s } })));
+  return success(res, Object.fromEntries(statuses.map((s, i) => [s, counts[i]])));
+}
+
+module.exports = { listTickets, getStats, createMessage, updateTicketStatus, assignTicket, updatePriority };

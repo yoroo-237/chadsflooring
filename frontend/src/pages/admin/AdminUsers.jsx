@@ -19,6 +19,12 @@ export default function AdminUsers() {
   const [err, setErr]         = useState(null);
   const limit = 20;
 
+  // Create user modal
+  const [createModal, setCreateModal] = useState(false);
+  const [createForm, setCreateForm]   = useState({ username: '', password: '', role: 'customer' });
+  const [creating, setCreating]       = useState(false);
+  const [createErr, setCreateErr]     = useState(null);
+
   const load = useCallback(async () => {
     setLoading(true); setErr(null);
     try {
@@ -27,12 +33,28 @@ export default function AdminUsers() {
       if (tier)   p.set('tier', tier);
       const d = await adminFetch(`/admin/users?${p}`);
       setUsers(d.users || []);
-      setTotal(d.total || 0);
+      setTotal(d.total ?? d.pagination?.total ?? 0);
     } catch (e) { setErr(e.message); }
     finally { setLoading(false); }
   }, [page, search, tier]);
 
   useEffect(() => { load(); }, [load]);
+
+  const openCreate = () => {
+    setCreateForm({ username: '', password: '', role: 'customer' });
+    setCreateErr(null);
+    setCreateModal(true);
+  };
+
+  const submitCreate = async e => {
+    e.preventDefault(); setCreating(true); setCreateErr(null);
+    try {
+      await adminFetch('/admin/users', { method: 'POST', body: createForm });
+      setCreateModal(false);
+      load();
+    } catch (e) { setCreateErr(e.message); }
+    finally { setCreating(false); }
+  };
 
   return (
     <div>
@@ -41,6 +63,7 @@ export default function AdminUsers() {
           <h1 className="admin-page-title">Users</h1>
           <p className="admin-page-subtitle">{total} registered users</p>
         </div>
+        <button className="admin-btn admin-btn-primary" onClick={openCreate}>+ Create User</button>
       </div>
       <div className="admin-filters">
         <SearchInput value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search by username…" />
@@ -79,6 +102,52 @@ export default function AdminUsers() {
         </table>
       </div>
       <Pagination page={page} totalPages={Math.ceil(total / limit)} onChange={setPage} />
+
+      {/* Create user modal */}
+      {createModal && (
+        <div className="admin-modal-overlay" onClick={e => { if (e.target === e.currentTarget) setCreateModal(false); }}>
+          <div className="admin-modal">
+            <div className="admin-modal-title">Create User</div>
+            <form onSubmit={submitCreate}>
+              <div className="admin-form-group">
+                <label className="admin-label">Username *</label>
+                <input
+                  className="admin-input"
+                  value={createForm.username}
+                  onChange={e => setCreateForm(f => ({ ...f, username: e.target.value }))}
+                  placeholder="username"
+                  autoFocus
+                  required
+                />
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-label">Password *</label>
+                <input
+                  className="admin-input"
+                  type="password"
+                  value={createForm.password}
+                  onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))}
+                  placeholder="Min 6 characters"
+                  required
+                />
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-label">Role</label>
+                <select className="admin-select" value={createForm.role} onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))}>
+                  <option value="customer">Customer</option>
+                  <option value="moderator">Moderator</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              {createErr && <div style={{ color: '#e53935', fontSize: 13, marginBottom: 12 }}>{createErr}</div>}
+              <div className="admin-modal-actions">
+                <button type="button" className="admin-btn admin-btn-secondary" onClick={() => setCreateModal(false)}>Cancel</button>
+                <button type="submit" className="admin-btn admin-btn-primary" disabled={creating}>{creating ? 'Creating…' : 'Create User'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

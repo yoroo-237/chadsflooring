@@ -123,9 +123,11 @@ export default function Header({ onCartOpen }) {
   const [time, setTime] = useState(() => calcTimeUntilDeadline(deadlineH, deadlineM));
   const [notifSeen, setNotifSeen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
   const inputRef = useRef(null);
+  const mobileInputRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -186,6 +188,23 @@ export default function Header({ onCartOpen }) {
             <XIcon />
           </button>
         </div>
+        {/* Search inside mobile drawer */}
+        <div className="mobile-nav-search">
+          <SearchIcon />
+          <input
+            type="text"
+            placeholder="Search products…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            inputMode="search"
+          />
+          {search && (
+            <button className="search-clear" onClick={() => setSearch('')} aria-label="Clear">
+              <ClearIcon />
+            </button>
+          )}
+        </div>
+
         <nav className="mobile-nav-links">
           {NAV_TABS.map(tab => (
             <Link
@@ -220,6 +239,33 @@ export default function Header({ onCartOpen }) {
         >
           <HamburgerIcon />
         </button>
+
+        {/* Mobile search overlay */}
+        {mobileSearchOpen && (
+          <div className="mobile-search-overlay">
+            <div className="mobile-search-inner">
+              <SearchIcon />
+              <input
+                ref={mobileInputRef}
+                type="text"
+                className="mobile-search-input"
+                placeholder="Search products…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                autoFocus
+                inputMode="search"
+              />
+              {search && (
+                <button className="search-clear" onClick={() => { setSearch(''); mobileInputRef.current?.focus(); }} aria-label="Clear">
+                  <ClearIcon />
+                </button>
+              )}
+              <button className="mobile-search-close" onClick={() => setMobileSearchOpen(false)} aria-label="Close search">
+                <XIcon />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Logo */}
         <div className="header-logo">
@@ -293,6 +339,15 @@ export default function Header({ onCartOpen }) {
 
         {/* Right icons */}
         <div className="header-right">
+          {/* Mobile search icon — visible only on small screens */}
+          <button
+            className="icon-btn header-search-icon-btn"
+            onClick={() => setMobileSearchOpen(true)}
+            aria-label="Search"
+          >
+            <SearchIcon />
+          </button>
+
           <button className="icon-btn" onClick={onCartOpen}>
             <CartIcon /> Cart
             <span className={`badge${cartCount > 0 ? ' visible' : ''}`}>{cartCount}</span>

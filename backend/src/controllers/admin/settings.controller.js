@@ -66,4 +66,38 @@ async function createIncident(req, res) {
   return success(res, incident, 201);
 }
 
-module.exports = { getAllSettings, updateSettings, getSystemStatus, updateSystemStatus, createIncident };
+async function listIncidents(req, res) {
+  const incidents = await prisma.systemIncident.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  });
+  return success(res, { incidents });
+}
+
+async function deleteIncident(req, res) {
+  const id = parseInt(req.params.id);
+  const existing = await prisma.systemIncident.findUnique({ where: { id } });
+  if (!existing) return error(res, 'Incident not found.', 404);
+  await prisma.systemIncident.delete({ where: { id } });
+  return success(res, { deleted: true });
+}
+
+async function updateIncident(req, res) {
+  const id = parseInt(req.params.id);
+  const { dateLabel, title, status, description } = req.body;
+  const existing = await prisma.systemIncident.findUnique({ where: { id } });
+  if (!existing) return error(res, 'Incident not found.', 404);
+  const data = {};
+  if (dateLabel   !== undefined) data.dateLabel   = dateLabel;
+  if (title       !== undefined) data.title       = title;
+  if (status      !== undefined) data.status      = status;
+  if (description !== undefined) data.description = description;
+  const updated = await prisma.systemIncident.update({ where: { id }, data });
+  return success(res, updated);
+}
+
+module.exports = {
+  getAllSettings, updateSettings,
+  getSystemStatus, updateSystemStatus,
+  listIncidents, createIncident, updateIncident, deleteIncident,
+};

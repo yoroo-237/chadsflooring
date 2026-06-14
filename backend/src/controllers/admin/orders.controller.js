@@ -20,7 +20,7 @@ async function listOrders(req, res) {
     and.push({
       OR: [
         { frontendId: { contains: search, mode: 'insensitive' } },
-        { user: { email: { contains: search, mode: 'insensitive' } } },
+        { user: { username: { contains: search, mode: 'insensitive' } } },
       ],
     });
   }
@@ -39,7 +39,7 @@ async function listOrders(req, res) {
       skip,
       take:    limit,
       include: {
-        user:   { select: { id: true, username: true, email: true } },
+        user:   { select: { id: true, username: true } },
         _count: { select: { items: true } },
       },
     }),
@@ -52,6 +52,7 @@ async function listOrders(req, res) {
       subtotal:     parseFloat(o.subtotal),
       shippingCost: parseFloat(o.shippingCost),
     })),
+    total,
     pagination: buildPagination(page, limit, total),
   });
 }

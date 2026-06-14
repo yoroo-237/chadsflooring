@@ -24,7 +24,7 @@ async function listDeposits(req, res) {
     }),
   ]);
 
-  return success(res, { deposits, pagination: buildPagination(page, limit, total) });
+  return success(res, { deposits, total, pagination: buildPagination(page, limit, total) });
 }
 
 async function confirmDeposit(req, res) {
@@ -36,7 +36,7 @@ async function confirmDeposit(req, res) {
     return error(res, 'usdAmount must be a positive number.', 400);
   }
 
-  const result = await confirmDepositManually(id, amt, req.user.sub);
+  const result = await confirmDepositManually(id, amt, req.user.id);
   return success(res, result);
 }
 
