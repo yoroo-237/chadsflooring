@@ -6,7 +6,7 @@ const EMPTY = { name: '', description: '', price: '', stock: '', sku: '', isActi
 
 export default function AdminProductForm() {
   const { id } = useParams();
-  const isEdit = id !== 'new';
+  const isEdit = !!id && id !== 'new';
   const navigate = useNavigate();
   const [form, setForm]           = useState(EMPTY);
   const [options, setOptions]     = useState([]);

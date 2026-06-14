@@ -171,12 +171,19 @@ async function updateUser(req, res, next) {
   if (markupPct !== undefined) data.markupPct = markupPct;
   if (username  !== undefined) data.username  = username;
 
-  const updated = await prisma.user.update({ where: { id }, data });
+  const updated = await prisma.user.update({
+    where: { id },
+    data,
+    select: { id: true, role: true, isActive: true, username: true, markupPct: true },
+  });
   return success(res, {
     updated: true,
-    user: { id: updated.id, role: updated.role, isActive: updated.isActive, username: updated.username },
+    user: { id: updated.id, role: updated.role, isActive: updated.isActive, username: updated.username, markupPct: parseFloat(updated.markupPct) },
   });
-  } catch (e) { next(e); }
+  } catch (e) {
+    if (e.code === 'P2002') return error(res, 'Username already in use.', 409);
+    next(e);
+  }
 }
 
 async function banUser(req, res, next) {
