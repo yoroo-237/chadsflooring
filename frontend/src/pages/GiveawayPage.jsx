@@ -2,6 +2,34 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
 
+function UsersIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  );
+}
+function TicketIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z"/>
+    </svg>
+  );
+}
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  );
+}
+
+const RANK_LABELS = ['1st', '2nd', '3rd'];
+const RANK_CLASSES = ['rank-1', 'rank-2', 'rank-3'];
+
 function useCountdown(endDate) {
   const calc = () => {
     if (!endDate) return { d: 0, h: 0, m: 0, s: 0 };
@@ -64,7 +92,9 @@ function GiveawayCard({ giveaway }) {
           <div className="giveaway-prizes">
             {prizes.map((p, i) => (
               <div key={i} className="giveaway-prize">
-                <span className="giveaway-prize-rank">{['🥇', '🥈', '🥉'][i] || '🏅'}</span>
+                <span className={`giveaway-prize-rank ${RANK_CLASSES[i] || 'rank-other'}`}>
+                  {RANK_LABELS[i] || `${i + 1}`}
+                </span>
                 <span>{p}</span>
               </div>
             ))}
@@ -87,8 +117,8 @@ function GiveawayCard({ giveaway }) {
         )}
 
         <div className="giveaway-meta">
-          <span>👥 {Number(entryCount).toLocaleString()} entries</span>
-          <span>🎟 {winners} winner{winners > 1 ? 's' : ''}</span>
+          <span className="giveaway-meta-icon"><UsersIcon /> {Number(entryCount).toLocaleString()} entries</span>
+          <span className="giveaway-meta-icon"><TicketIcon /> {winners} winner{winners > 1 ? 's' : ''}</span>
         </div>
 
         <button
@@ -96,7 +126,7 @@ function GiveawayCard({ giveaway }) {
           onClick={handleEnter}
           disabled={entered || entering}
         >
-          {entered ? '✓ Entered!' : entering ? 'Entering…' : 'Enter Giveaway'}
+          {entered ? <><CheckIcon /> Entered!</> : entering ? 'Entering…' : 'Enter Giveaway'}
         </button>
       </div>
     </div>

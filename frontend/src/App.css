@@ -1025,7 +1025,7 @@ ul, ol { list-style: none; }
 }
 .footer-link:hover { color: #4D9CEB; }
 .footer-theme-toggle { display:inline-flex; flex-direction:column; gap:6px; background:#2e2e2e; padding:8px; border-radius:14px; width:124px; }
-.footer-theme-btn { display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:10px; font-size:14px; font-weight:600; color:#cfcfcf; background:transparent; border:none; cursor:pointer; transition:background .15s, color .15s; font-family:var(--font); }
+.footer-theme-btn { display:flex; align-items:center; gap:8px; padding:10px 14px; min-height:44px; border-radius:10px; font-size:14px; font-weight:600; color:#cfcfcf; background:transparent; border:none; cursor:pointer; transition:background .15s, color .15s; font-family:var(--font); }
 .footer-theme-btn.active { background:#fff; color:#252525; box-shadow:0 1px 3px rgba(0,0,0,0.2); }
 
 /* Light-mode footer (follows theme) */
@@ -2634,4 +2634,71 @@ textarea:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* =====================================================
+   WISHLIST BUTTON — 44px touch target on mobile
+   ===================================================== */
+@media (max-width: 768px) {
+  .wishlist-btn {
+    width: 44px;
+    height: 44px;
+    margin-left: 0;
+  }
+}
+
+/* =====================================================
+   GIVEAWAY — responsive meta icons
+   ===================================================== */
+.giveaway-meta-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  vertical-align: middle;
+}
+/* Prize rank badges */
+.giveaway-prize-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+  color: #fff;
+}
+.giveaway-prize-rank.rank-1 { background: #f7a800; }
+.giveaway-prize-rank.rank-2 { background: #9e9e9e; }
+.giveaway-prize-rank.rank-3 { background: #cd7f32; }
+.giveaway-prize-rank.rank-other { background: #607d8b; }
+
+/* =====================================================
+   WALLET QR — responsive on very small screens
+   ===================================================== */
+@media (max-width: 380px) {
+  .wallet-qr-svg { width: 140px !important; height: 140px !important; }
+}
+
+/* =====================================================
+   NEWS — image placeholder
+   ===================================================== */
+.news-card-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-chip);
+  color: var(--text-muted);
+}
+
+/* =====================================================
+   ORDER CARD — mobile stacking fix
+   ===================================================== */
+@media (max-width: 480px) {
+  .order-card-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .order-card-header > div:last-child { flex-wrap: wrap; }
+  .order-items-preview { flex-wrap: wrap; }
 }

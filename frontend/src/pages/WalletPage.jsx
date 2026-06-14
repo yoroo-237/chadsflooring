@@ -376,7 +376,7 @@ export default function WalletPage() {
 
             {/* QR code */}
             <div style={{ display: 'flex', justifyContent: 'center', margin: '12px 0' }}>
-              <QRCodeSVG value={depositAddress} size={180} />
+              <QRCodeSVG value={depositAddress} size={180} className="wallet-qr-svg" />
             </div>
 
             {/* Address + copy */}

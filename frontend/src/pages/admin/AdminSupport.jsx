@@ -6,6 +6,14 @@ import SearchInput from '../../components/admin/SearchInput';
 import Pagination from '../../components/admin/Pagination';
 import StatCard from '../../components/admin/StatCard';
 
+function CircleIcon({ color }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18">
+      <circle cx="9" cy="9" r="8" fill={color} />
+    </svg>
+  );
+}
+
 export default function AdminSupport() {
   const navigate = useNavigate();
   const [tickets, setTickets] = useState([]);
@@ -50,10 +58,10 @@ export default function AdminSupport() {
 
       {stats && (
         <div className="admin-stat-grid" style={{ marginBottom: 20 }}>
-          <StatCard icon="🔵" color="#2196f3" label="Open"        value={stats.open        ?? 0} />
-          <StatCard icon="🟡" color="#ff9800" label="In Progress" value={stats.in_progress ?? 0} />
-          <StatCard icon="🟢" color="#43a047" label="Resolved"    value={stats.resolved    ?? 0} />
-          <StatCard icon="⚫" color="#6c757d" label="Closed"      value={stats.closed      ?? 0} />
+          <StatCard icon={<CircleIcon color="#2196f3" />} color="#2196f3" label="Open"        value={stats.open        ?? 0} />
+          <StatCard icon={<CircleIcon color="#ff9800" />} color="#ff9800" label="In Progress" value={stats.in_progress ?? 0} />
+          <StatCard icon={<CircleIcon color="#43a047" />} color="#43a047" label="Resolved"    value={stats.resolved    ?? 0} />
+          <StatCard icon={<CircleIcon color="#6c757d" />} color="#6c757d" label="Closed"      value={stats.closed      ?? 0} />
         </div>
       )}
 

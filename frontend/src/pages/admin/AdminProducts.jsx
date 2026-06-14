@@ -78,7 +78,7 @@ export default function AdminProducts() {
                     <td>
                       {p.imageUrl
                         ? <img src={p.imageUrl} alt={p.name} className="admin-img-preview" />
-                        : <div style={{ width: 48, height: 48, background: '#f4f6f9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🌿</div>
+                        : <div style={{ width: 48, height: 48, background: '#f4f6f9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#bdbdbd" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
                       }
                     </td>
                     <td style={{ fontWeight: 600 }}>{p.name}</td>

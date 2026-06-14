@@ -102,7 +102,7 @@ export default function AdminReviews() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           {r.product?.imageUrl
                             ? <img src={r.product.imageUrl} alt={r.product.name} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-                            : <div style={{ width: 36, height: 36, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🌿</div>
+                            : <div style={{ width: 36, height: 36, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#bdbdbd" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
                           }
                           <span style={{ fontWeight: 600, fontSize: 13, maxWidth: 120 }}>{r.product?.name || '—'}</span>
                         </div>
