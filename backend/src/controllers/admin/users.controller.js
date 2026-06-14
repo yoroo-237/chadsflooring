@@ -141,9 +141,17 @@ async function getUserById(req, res, next) {
     totalSpent: parseFloat(user.totalSpent),
     markupPct:  parseFloat(user.markupPct),
     tier:       getTier(user.totalSpent),
-    recentOrders:       orders.map(o => ({ ...o, totalAmount: parseFloat(o.totalAmount) })),
+    recentOrders:       orders.map(o => ({
+      id: o.id, frontendId: o.frontendId, status: o.status, paymentMethod: o.paymentMethod,
+      totalAmount: parseFloat(o.totalAmount), placedAt: o.placedAt,
+    })),
     recentTransactions: transactions.map(t => ({ ...t, amount: parseFloat(t.amount) })),
-    recentDeposits:     deposits,
+    recentDeposits:     deposits.map(d => ({
+      ...d,
+      amountExpected: d.amountExpected != null ? parseFloat(d.amountExpected) : null,
+      amountReceived: parseFloat(d.amountReceived),
+      usdCredited:    parseFloat(d.usdCredited),
+    })),
     recentTickets:      tickets,
     apiKeys,
   });
@@ -248,11 +256,18 @@ async function createUser(req, res, next) {
   if (existing) return error(res, 'Username already in use.', 409);
 
   const passwordHash = await hashPassword(password);
-  const user = await prisma.user.create({
-    data:   { username: username.trim(), passwordHash, role },
-    select: { id: true, username: true, role: true, createdAt: true },
-  });
-  return success(res, { user }, 201);
+  try {
+    const user = await prisma.user.create({
+      data:   { username: username.trim(), passwordHash, role },
+      select: { id: true, username: true, role: true, createdAt: true },
+    });
+    return success(res, { user }, 201);
+  } catch (e) {
+    if (e.code === 'P2002') {
+      return error(res, 'Username already in use.', 409);
+    }
+    throw e;
+  }
   } catch (e) { next(e); }
 }
 

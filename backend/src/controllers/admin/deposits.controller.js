@@ -25,7 +25,16 @@ async function listDeposits(req, res, next) {
       }),
     ]);
 
-    return success(res, { deposits, total, pagination: buildPagination(page, limit, total) });
+    return success(res, {
+      deposits: deposits.map(d => ({
+        ...d,
+        amountExpected: d.amountExpected != null ? parseFloat(d.amountExpected) : null,
+        amountReceived: parseFloat(d.amountReceived),
+        usdCredited:    parseFloat(d.usdCredited),
+      })),
+      total,
+      pagination: buildPagination(page, limit, total),
+    });
   } catch (e) { next(e); }
 }
 
