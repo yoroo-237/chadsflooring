@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const prisma  = require('../db');
-const { confirmDepositManually }   = require('../services/wallet.service');
-const { deleteBlockCypherWebhook } = require('../services/crypto.service');
+const { confirmDepositManually }      = require('../services/wallet.service');
+const { deleteBlockCypherForwarding } = require('../services/crypto.service');
 
 const COINGECKO_ID = {
   BTC:  'bitcoin',
@@ -25,7 +25,37 @@ async function blockcypher(req, res) {
   res.status(200).json({ received: true }); // respond immediately — BlockCypher retries on timeout
 
   try {
-    const { addresses, outputs, confirmations, hash } = req.body || {};
+    const body = req.body || {};
+
+    // ── Payment forwarding callback ────────────────────────────────────────────
+    // Payload: { input_address, destination, value (satoshis), input_transaction_hash, transaction_hash }
+    if (body.input_address) {
+      const { input_address, value, input_transaction_hash } = body;
+      if (!value || value <= 0) return;
+
+      const deposit = await prisma.deposit.findFirst({
+        where: {
+          address:  input_address,
+          currency: { in: ['BTC', 'LTC', 'DOGE'] },
+          status:   { in: ['awaiting', 'partial'] },
+        },
+      });
+      if (!deposit) return;
+
+      const price = await getCoinUsdPrice(COINGECKO_ID[deposit.currency]);
+      if (!price) {
+        console.error(`Could not fetch USD price for ${deposit.currency}`);
+        return;
+      }
+
+      const usdAmount = parseFloat(((value / 1e8) * price).toFixed(2));
+      await confirmDepositManually(deposit.id, usdAmount, null, input_transaction_hash || null);
+      await deleteBlockCypherForwarding(deposit.currency, deposit.hookId);
+      return;
+    }
+
+    // ── Regular confirmed-tx webhook (legacy / fallback) ───────────────────────
+    const { addresses, outputs, confirmations, hash } = body;
     if (!addresses?.length || !outputs?.length || (confirmations ?? 0) < 1) return;
 
     for (const address of addresses) {
@@ -38,7 +68,6 @@ async function blockcypher(req, res) {
       });
       if (!deposit) continue;
 
-      // Sum satoshis from outputs directed to our address
       const satoshis = outputs
         .filter(o => Array.isArray(o.addresses) && o.addresses.includes(address))
         .reduce((sum, o) => sum + (o.value || 0), 0);
@@ -49,10 +78,6 @@ async function blockcypher(req, res) {
 
       const usdAmount = parseFloat(((satoshis / 1e8) * price).toFixed(2));
       await confirmDepositManually(deposit.id, usdAmount, null, hash || null);
-
-      if (deposit.hookId) {
-        await deleteBlockCypherWebhook(deposit.currency, deposit.hookId);
-      }
     }
   } catch (e) {
     console.error('BlockCypher webhook error:', e.message);
@@ -61,7 +86,7 @@ async function blockcypher(req, res) {
 
 // POST /api/webhooks/alchemy
 async function alchemy(req, res) {
-  res.status(200).json({ received: true }); // respond immediately
+  res.status(200).json({ received: true });
 
   try {
     const sig = req.headers['x-alchemy-signature'];

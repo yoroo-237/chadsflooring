@@ -1,46 +1,50 @@
-const axios = require('axios');
+const axios  = require('axios');
 const { HDNodeWallet } = require('ethers');
+const prisma = require('../db');
 
-const TOKEN = process.env.BLOCKCYPHER_TOKEN;
+const TOKEN        = process.env.BLOCKCYPHER_TOKEN;
 const CALLBACK_URL = `${process.env.RAILWAY_PUBLIC_URL}/api/webhooks/blockcypher`;
 
-const CHAIN = { BTC: 'btc/main', LTC: 'ltc/main', DOGE: 'doge/main' };
+const CHAIN    = { BTC: 'btc/main', LTC: 'ltc/main', DOGE: 'doge/main' };
+const ADDR_KEY = { BTC: 'btc_address', LTC: 'ltc_address', DOGE: 'doge_address' };
+
+async function getSetting(key) {
+  const row = await prisma.siteSetting.findUnique({ where: { key } });
+  return row?.value || null;
+}
 
 async function generateDepositAddress(currency, depositId) {
   switch (currency) {
     case 'BTC':
     case 'LTC':
     case 'DOGE': {
-      const chain = CHAIN[currency];
-      const addrRes = await axios.post(
-        `https://api.blockcypher.com/v1/${chain}/addrs?token=${TOKEN}`
+      if (!TOKEN) throw Object.assign(
+        new Error('BLOCKCYPHER_TOKEN not configured on the server.'),
+        { status: 500 }
       );
-      const address = addrRes.data.address;
 
-      let hookId = null;
-      if (TOKEN) {
-        try {
-          const hookRes = await axios.post(
-            `https://api.blockcypher.com/v1/${chain}/hooks?token=${TOKEN}`,
-            {
-              event:         'confirmed-tx',
-              address,
-              url:           CALLBACK_URL,
-              confirmations: 1,
-            }
-          );
-          hookId = hookRes.data.id || null;
-        } catch (e) {
-          console.error(`BlockCypher webhook register failed (${currency}):`, e.message);
-        }
-      }
+      const destination = await getSetting(ADDR_KEY[currency]);
+      if (!destination) throw Object.assign(
+        new Error(`${currency} destination address not set — go to Admin → Settings → Crypto and enter your ${currency} wallet address.`),
+        { status: 500 }
+      );
 
-      return { address, hookId, ethIndex: null };
+      const chain  = CHAIN[currency];
+      const fwdRes = await axios.post(
+        `https://api.blockcypher.com/v1/${chain}/forwards?token=${TOKEN}`,
+        { destination, callback_url: CALLBACK_URL }
+      );
+
+      return {
+        address:  fwdRes.data.input_address,
+        hookId:   fwdRes.data.id,   // forwarding ID — used for cleanup after confirmation
+        ethIndex: null,
+      };
     }
 
     case 'ETH': {
       const phrase = process.env.ETH_HD_SEED;
-      if (!phrase) throw Object.assign(new Error('ETH_HD_SEED not configured'), { status: 500 });
+      if (!phrase) throw Object.assign(new Error('ETH_HD_SEED not configured.'), { status: 500 });
 
       const wallet  = HDNodeWallet.fromPhrase(phrase, undefined, `m/44'/60'/0'/0/${depositId}`);
       const address = wallet.address;
@@ -65,8 +69,12 @@ async function generateDepositAddress(currency, depositId) {
     }
 
     case 'XMR': {
-      const address = process.env.XMR_DEPOSIT_ADDRESS;
-      if (!address) throw Object.assign(new Error('XMR_DEPOSIT_ADDRESS not configured'), { status: 500 });
+      // Reads from admin settings first, falls back to env var for backwards compat
+      const address = await getSetting('xmr_address') || process.env.XMR_DEPOSIT_ADDRESS;
+      if (!address) throw Object.assign(
+        new Error('XMR deposit address not set — go to Admin → Settings → Crypto and enter your Monero wallet address.'),
+        { status: 500 }
+      );
       return { address, hookId: null, ethIndex: null };
     }
 
@@ -75,16 +83,16 @@ async function generateDepositAddress(currency, depositId) {
   }
 }
 
-async function deleteBlockCypherWebhook(currency, hookId) {
+async function deleteBlockCypherForwarding(currency, forwardingId) {
   const chain = CHAIN[currency];
-  if (!chain || !hookId || !TOKEN) return;
+  if (!chain || !forwardingId || !TOKEN) return;
   try {
     await axios.delete(
-      `https://api.blockcypher.com/v1/${chain}/hooks/${hookId}?token=${TOKEN}`
+      `https://api.blockcypher.com/v1/${chain}/forwards/${forwardingId}?token=${TOKEN}`
     );
   } catch (e) {
-    console.error(`BlockCypher webhook delete failed (${currency} / ${hookId}):`, e.message);
+    console.error(`BlockCypher forwarding delete failed (${currency} / ${forwardingId}):`, e.message);
   }
 }
 
-module.exports = { generateDepositAddress, deleteBlockCypherWebhook };
+module.exports = { generateDepositAddress, deleteBlockCypherForwarding };
