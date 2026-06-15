@@ -100,7 +100,7 @@ export default function AdminDeposits() {
 
   const openConfirm = d => {
     setConfirmForm({ usdAmount: String(d.usdAmount || d.expectedUsd || ''), note: '' });
-    setConfirmModal({ id: d.id });
+    setConfirmModal({ id: d.id, currency: d.currency });
   };
 
   return (
@@ -124,6 +124,25 @@ export default function AdminDeposits() {
           <option value="">All currencies</option>
           {Object.keys(CRYPTO_COLORS).map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+      </div>
+
+      {/* Process reference panel */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 220, background: 'rgba(67,160,71,.08)', border: '1px solid rgba(67,160,71,.25)', borderRadius: 10, padding: '10px 14px' }}>
+          <div style={{ fontWeight: 700, fontSize: 12, color: '#2e7d32', marginBottom: 4 }}>⚡ Auto-confirmed (BTC · LTC · DOGE · ETH)</div>
+          <div style={{ fontSize: 12, color: '#388e3c', lineHeight: 1.6 }}>
+            A unique address is generated per deposit via BlockCypher (BTC/LTC/DOGE) or Alchemy (ETH).
+            Once the transaction gets 1 on-chain confirmation, the webhook credits the customer's balance automatically.
+            <strong> No action needed.</strong>
+          </div>
+        </div>
+        <div style={{ flex: 1, minWidth: 220, background: 'rgba(251,140,0,.08)', border: '1px solid rgba(251,140,0,.3)', borderRadius: 10, padding: '10px 14px' }}>
+          <div style={{ fontWeight: 700, fontSize: 12, color: '#e65100', marginBottom: 4 }}>👤 Manual review required (XMR)</div>
+          <div style={{ fontSize: 12, color: '#bf360c', lineHeight: 1.6 }}>
+            All XMR deposits share a single address. The customer must open a support ticket with their TX Hash.
+            Verify the payment in your Monero wallet, then click <strong>Confirm</strong> on the deposit row and enter the USD amount to credit.
+          </div>
+        </div>
       </div>
 
       {err && <div style={{ color: '#e53935', marginBottom: 12, fontSize: 13 }}>{err}</div>}
@@ -178,7 +197,16 @@ export default function AdminDeposits() {
                     <td style={{ fontWeight: 700, color: d.usdCredited > 0 ? '#43a047' : '#6c757d' }}>
                       {d.usdCredited > 0 ? fmt(d.usdCredited) : '—'}
                     </td>
-                    <td><StatusBadge status={d.status} /></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <StatusBadge status={d.status} />
+                        {d.currency === 'XMR' && (d.status === 'awaiting' || d.status === 'partial') && (
+                          <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(251,140,0,.15)', color: '#e65100', borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                            MANUAL
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td style={{ fontSize: 12, color: '#6c757d' }}>
                       {d.expiresAt ? new Date(d.expiresAt).toLocaleString() : '—'}
                     </td>
@@ -212,6 +240,14 @@ export default function AdminDeposits() {
         <div className="admin-modal-overlay" onClick={e => { if (e.target === e.currentTarget) setConfirmModal(null); }}>
           <div className="admin-modal">
             <div className="admin-modal-title">Confirm Deposit</div>
+            {confirmModal.currency === 'XMR' && (
+              <div style={{ background: 'rgba(251,140,0,.1)', border: '1px solid rgba(251,140,0,.3)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: '#bf360c', lineHeight: 1.6 }}>
+                <strong>XMR manual confirmation checklist:</strong><br />
+                1. Open your Monero wallet and confirm you received a transaction from this customer.<br />
+                2. Convert the XMR amount to USD at today's rate (e.g. via CoinGecko).<br />
+                3. Enter the USD amount below and click Confirm — this credits the customer's balance.
+              </div>
+            )}
             <form onSubmit={doConfirm}>
               <div className="admin-form-group">
                 <label className="admin-label">USD Amount to Credit *</label>

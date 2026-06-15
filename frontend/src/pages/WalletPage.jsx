@@ -12,9 +12,62 @@ const CURRENCIES = [
   { key: 'XMR',  label: 'Monero',   color: '#ff6600', note: '' },
 ];
 
-const CURRENCY_MSG = {
-  XMR: 'XMR deposits are confirmed manually by our team. Contact support after sending.',
-  default: 'Your balance will be credited automatically after 1 blockchain confirmation (~10-20 min).',
+const DEPOSIT_GUIDE = {
+  BTC: {
+    auto: true,
+    time: '~10–60 min',
+    steps: [
+      'Copy the Bitcoin address above or scan the QR code with your wallet app.',
+      'Send any amount of BTC to this address — one transaction only.',
+      'After 1 blockchain confirmation (usually 10–60 minutes), your USD balance is credited automatically.',
+      'The exchange rate used is the rate at the moment your transaction confirms.',
+    ],
+    warning: 'Send only Bitcoin (BTC) to this address. Do not reuse it — each address is single-use.',
+  },
+  LTC: {
+    auto: true,
+    time: '~5–30 min',
+    steps: [
+      'Copy the Litecoin address above or scan the QR code.',
+      'Send any amount of LTC from your wallet — one transaction only.',
+      'After 1 confirmation on the Litecoin network (usually 5–30 min), your balance updates automatically.',
+      'The USD value is calculated at the exchange rate when the transaction confirms.',
+    ],
+    warning: 'Send only Litecoin (LTC) to this address. One transaction only — do not reuse.',
+  },
+  DOGE: {
+    auto: true,
+    time: '~5–15 min',
+    steps: [
+      'Copy the Dogecoin address above or scan the QR code.',
+      'Send any amount of DOGE — one transaction only.',
+      'After 1 confirmation (usually 5–15 min), your USD credit is applied automatically.',
+      'The USD value is based on the exchange rate at confirmation time.',
+    ],
+    warning: 'Send only Dogecoin (DOGE) to this address. One transaction only — do not reuse.',
+  },
+  ETH: {
+    auto: true,
+    time: '~1–5 min',
+    steps: [
+      'Copy the Ethereum address above or scan the QR code.',
+      'Send any amount of ETH — one transaction only.',
+      'After 1 network confirmation (usually 1–5 minutes), your balance is updated automatically.',
+      'The USD value is based on the ETH/USD rate at the moment of confirmation.',
+    ],
+    warning: 'Send only ETH to this address — not ERC-20 tokens. One transaction only.',
+  },
+  XMR: {
+    auto: false,
+    time: 'Within 24 hours',
+    steps: [
+      'Copy the Monero address above or scan the QR code.',
+      'Send any amount of XMR from your Monero wallet.',
+      'After sending, open a support ticket and include your Transaction ID (TX Hash) and the amount sent in XMR.',
+      'Our team will verify the payment on the blockchain and manually credit your balance within 24 hours.',
+    ],
+    warning: 'Monero deposits are not automatic. You must contact support after sending — your balance will not update on its own.',
+  },
 };
 
 const STATUS_ICONS = {
@@ -407,17 +460,54 @@ export default function WalletPage() {
               <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 16 }}>{timeLeft}</span>
             </div>
 
-            {/* Message */}
-            <p style={{
-              fontSize:     13,
-              color:        'var(--text-muted)',
-              background:   'var(--bg-card, #f5f5f5)',
-              borderRadius: 8,
-              padding:      '10px 14px',
-              margin:       0,
-            }}>
-              {CURRENCY_MSG[depositCurrency] || CURRENCY_MSG.default}
-            </p>
+            {/* How it works guide */}
+            {(() => {
+              const guide = DEPOSIT_GUIDE[depositCurrency];
+              if (!guide) return null;
+              return (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13 }}>How it works</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '2px 10px',
+                      background: guide.auto ? 'rgba(67,160,71,.12)' : 'rgba(251,140,0,.12)',
+                      color:      guide.auto ? '#43a047'             : '#fb8c00',
+                    }}>
+                      {guide.auto ? `⚡ Auto-confirmed · ${guide.time}` : `👤 Manual review · ${guide.time}`}
+                    </span>
+                  </div>
+
+                  <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {guide.steps.map((step, i) => (
+                      <li key={i} style={{ fontSize: 13, color: 'var(--text-body, #333)', lineHeight: 1.5 }}>{step}</li>
+                    ))}
+                  </ol>
+
+                  <div style={{
+                    marginTop: 12, fontSize: 12, lineHeight: 1.5, borderRadius: 8,
+                    padding: '8px 12px',
+                    background: guide.auto ? 'rgba(67,160,71,.08)' : 'rgba(229,57,53,.08)',
+                    color:      guide.auto ? '#2e7d32'             : '#c62828',
+                    borderLeft: `3px solid ${guide.auto ? '#43a047' : '#e53935'}`,
+                  }}>
+                    {guide.warning}
+                  </div>
+
+                  {!guide.auto && (
+                    <a
+                      href="/support"
+                      style={{
+                        display: 'block', marginTop: 12, textAlign: 'center',
+                        background: '#ff6600', color: '#fff', borderRadius: 8,
+                        padding: '10px 0', fontWeight: 700, fontSize: 13, textDecoration: 'none',
+                      }}
+                    >
+                      Open a Support Ticket →
+                    </a>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
