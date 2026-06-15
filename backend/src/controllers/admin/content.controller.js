@@ -43,7 +43,10 @@ async function updateNews(req, res) {
   const existing = await prisma.news.findUnique({ where: { id } });
   if (!existing) return error(res, 'News not found.', 404);
 
-  const news = await prisma.news.update({ where: { id }, data: req.body });
+  // Strip auto-managed fields and relation objects that Prisma rejects in data
+  const { id: _id, createdAt, author, published, ...data } = req.body;
+
+  const news = await prisma.news.update({ where: { id }, data });
   return success(res, news);
 }
 
@@ -73,7 +76,8 @@ async function updateFaq(req, res) {
   const existing = await prisma.faq.findUnique({ where: { id } });
   if (!existing) return error(res, 'FAQ not found.', 404);
 
-  const faq = await prisma.faq.update({ where: { id }, data: req.body });
+  const { id: _id, createdAt, ...data } = req.body;
+  const faq = await prisma.faq.update({ where: { id }, data });
   return success(res, faq);
 }
 
@@ -130,7 +134,8 @@ async function updateGiveaway(req, res) {
   const existing = await prisma.giveaway.findUnique({ where: { id } });
   if (!existing) return error(res, 'Giveaway not found.', 404);
 
-  const giveaway = await prisma.giveaway.update({ where: { id }, data: req.body });
+  const { id: _id, createdAt, ...data } = req.body;
+  const giveaway = await prisma.giveaway.update({ where: { id }, data });
   return success(res, giveaway);
 }
 
