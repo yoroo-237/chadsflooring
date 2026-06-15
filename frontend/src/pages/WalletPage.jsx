@@ -194,9 +194,14 @@ export default function WalletPage() {
     setAgreed(false);
   };
 
-  const depositAddress = currentDeposit?.address || '';
+  const depositAddress  = currentDeposit?.address || '';
   const depositCurrency = currentDeposit?.currency || selectedCurrency;
-  const currencyColor = CURRENCIES.find(c => c.key === depositCurrency)?.color || '#888';
+  const currencyColor   = CURRENCIES.find(c => c.key === depositCurrency)?.color || '#888';
+
+  const URI_SCHEME = { BTC: 'bitcoin', LTC: 'litecoin', DOGE: 'dogecoin', ETH: 'ethereum', XMR: 'monero' };
+  const depositQrValue = depositAddress
+    ? `${URI_SCHEME[depositCurrency] || depositCurrency.toLowerCase()}:${depositAddress}`
+    : '';
 
   return (
     <main className="main-content">
@@ -429,7 +434,7 @@ export default function WalletPage() {
 
             {/* QR code */}
             <div style={{ display: 'flex', justifyContent: 'center', margin: '12px 0' }}>
-              <QRCodeSVG value={depositAddress} size={180} className="wallet-qr-svg" />
+              <QRCodeSVG value={depositQrValue} size={180} className="wallet-qr-svg" />
             </div>
 
             {/* Address + copy */}
