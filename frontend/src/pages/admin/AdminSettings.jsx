@@ -40,7 +40,7 @@ export default function AdminSettings() {
   const submit = async e => {
     e.preventDefault(); setSaving(true); setSaved(false); setErr(null);
     try {
-      await adminFetch('/admin/settings', { method: 'PUT', body: { updates: settings } });
+      await adminFetch('/admin/settings', { method: 'PUT', body: settings });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) { setErr(e.message); }
@@ -208,30 +208,25 @@ export default function AdminSettings() {
         )}
 
         {tab === 'Crypto' && (
-          <Section title="Crypto Addresses (read-only)">
+          <Section title="Crypto Deposit Addresses">
             <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 16 }}>
-              These addresses are configured server-side. Contact your system administrator to change them.
+              These are the addresses shown to customers when they make a deposit. Save after editing.
             </div>
             {[
-              { key: 'btc_address',  label: 'Bitcoin (BTC)',   color: '#f7931a' },
-              { key: 'doge_address', label: 'Dogecoin (DOGE)', color: '#c2a633' },
-              { key: 'ltc_address',  label: 'Litecoin (LTC)',  color: '#345d9d' },
-              { key: 'xmr_address',  label: 'Monero (XMR)',   color: '#ff6600' },
+              { key: 'btc_address',  label: 'Bitcoin (BTC)',   color: '#f7931a', placeholder: 'bc1q...' },
+              { key: 'doge_address', label: 'Dogecoin (DOGE)', color: '#c2a633', placeholder: 'D...' },
+              { key: 'ltc_address',  label: 'Litecoin (LTC)',  color: '#345d9d', placeholder: 'ltc1q...' },
+              { key: 'xmr_address',  label: 'Monero (XMR)',   color: '#ff6600', placeholder: '4...' },
             ].map(f => (
               <div key={f.key} className="admin-form-group">
                 <label className="admin-label" style={{ color: f.color }}>{f.label}</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    className="admin-input"
-                    value={s[f.key] || 'Not configured'}
-                    readOnly
-                    style={{ fontFamily: 'monospace', fontSize: 12, background: '#f4f6f9', cursor: 'default' }}
-                  />
-                  <button type="button" className="admin-btn admin-btn-secondary admin-btn-sm"
-                    onClick={() => navigator.clipboard?.writeText(s[f.key] || '')}>
-                    Copy
-                  </button>
-                </div>
+                <input
+                  className="admin-input"
+                  value={s[f.key] || ''}
+                  onChange={e => set(f.key, e.target.value)}
+                  placeholder={f.placeholder}
+                  style={{ fontFamily: 'monospace', fontSize: 12 }}
+                />
               </div>
             ))}
           </Section>
