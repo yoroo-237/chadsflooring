@@ -282,4 +282,20 @@ async function createUser(req, res, next) {
   }
 }
 
-module.exports = { listUsers, getUserById, updateUser, banUser, adjustWallet, createUser };
+async function resetPassword(req, res, next) {
+  try {
+    const id = parseInt(req.params.id);
+    const password = String(req.body.password || '');
+    if (password.length < 6) return error(res, 'Password must be at least 6 characters.', 400);
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) return error(res, 'User not found.', 404);
+
+    const passwordHash = await hashPassword(password);
+    await prisma.user.update({ where: { id }, data: { passwordHash } });
+
+    return success(res, { reset: true });
+  } catch (e) { next(e); }
+}
+
+module.exports = { listUsers, getUserById, updateUser, banUser, adjustWallet, createUser, resetPassword };

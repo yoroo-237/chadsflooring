@@ -30,6 +30,7 @@ router.post('/users',                    wrap(usersCtrl.createUser));
 router.get('/users/:id',                 wrap(usersCtrl.getUserById));
 router.put('/users/:id',                 wrap(usersCtrl.updateUser));
 router.patch('/users/:id/ban',           wrap(usersCtrl.banUser));
+router.patch('/users/:id/password',      wrap(usersCtrl.resetPassword));
 router.post('/users/:id/wallet/adjust',  wrap(usersCtrl.adjustWallet));
 
 // ─── Orders ──────────────────────────────────────────────────────────────────

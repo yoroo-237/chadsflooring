@@ -26,6 +26,14 @@ export default function AdminUserDetail() {
   const [editSaving, setEditSaving] = useState(false);
   const [editErr, setEditErr]     = useState(null);
 
+  // Set password modal
+  const [pwdModal, setPwdModal]   = useState(false);
+  const [pwdForm, setPwdForm]     = useState({ password: '', confirm: '' });
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdErr, setPwdErr]       = useState(null);
+  const [pwdOk, setPwdOk]         = useState(false);
+  const [pwdVisible, setPwdVisible] = useState(false);
+
   const load = () => {
     setLoading(true);
     adminFetch(`/admin/users/${id}`)
@@ -60,6 +68,20 @@ export default function AdminUserDetail() {
     finally { setEditSaving(false); }
   };
 
+  const savePassword = async e => {
+    e.preventDefault(); setPwdSaving(true); setPwdErr(null); setPwdOk(false);
+    if (pwdForm.password !== pwdForm.confirm) {
+      setPwdErr('Passwords do not match.'); setPwdSaving(false); return;
+    }
+    try {
+      await adminFetch(`/admin/users/${id}/password`, { method: 'PATCH', body: { password: pwdForm.password } });
+      setPwdOk(true);
+      setPwdForm({ password: '', confirm: '' });
+      setTimeout(() => { setPwdModal(false); setPwdOk(false); }, 1500);
+    } catch (e) { setPwdErr(e.message); }
+    finally { setPwdSaving(false); }
+  };
+
   const toggleBan = async () => {
     try {
       await adminFetch(`/admin/users/${id}/ban`, { method: 'PATCH' });
@@ -88,6 +110,7 @@ export default function AdminUserDetail() {
           >
             {u.isActive !== false ? 'Ban User' : 'Unban User'}
           </button>
+          <button className="admin-btn admin-btn-secondary" onClick={() => { setPwdForm({ password: '', confirm: '' }); setPwdErr(null); setPwdOk(false); setPwdVisible(false); setPwdModal(true); }}>Set Password</button>
           <button className="admin-btn admin-btn-secondary" onClick={() => setEditModal(true)}>Edit User</button>
           <button className="admin-btn admin-btn-primary" onClick={() => { setBalForm({ type: 'credit', amount: '', reason: '' }); setBalModal(true); }}>
             Adjust Balance
@@ -237,6 +260,55 @@ export default function AdminUserDetail() {
               }
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Set password modal */}
+      {pwdModal && (
+        <div className="admin-modal-overlay" onClick={e => { if (e.target === e.currentTarget) setPwdModal(false); }}>
+          <div className="admin-modal">
+            <div className="admin-modal-title">Set Password — {u.username}</div>
+            <form onSubmit={savePassword}>
+              <div className="admin-form-group">
+                <label className="admin-label">New Password *</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    className="admin-input"
+                    type={pwdVisible ? 'text' : 'password'}
+                    value={pwdForm.password}
+                    onChange={e => setPwdForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder="Min. 6 characters"
+                    required
+                    style={{ paddingRight: 40 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPwdVisible(v => !v)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#6c757d', fontSize: 13 }}
+                  >
+                    {pwdVisible ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-label">Confirm Password *</label>
+                <input
+                  className="admin-input"
+                  type={pwdVisible ? 'text' : 'password'}
+                  value={pwdForm.confirm}
+                  onChange={e => setPwdForm(f => ({ ...f, confirm: e.target.value }))}
+                  placeholder="Repeat password"
+                  required
+                />
+              </div>
+              {pwdErr && <div style={{ color: '#e53935', fontSize: 13, marginBottom: 12 }}>{pwdErr}</div>}
+              {pwdOk  && <div style={{ color: '#43a047', fontSize: 13, marginBottom: 12 }}>✓ Password updated.</div>}
+              <div className="admin-modal-actions">
+                <button type="button" className="admin-btn admin-btn-secondary" onClick={() => setPwdModal(false)}>Cancel</button>
+                <button type="submit" className="admin-btn admin-btn-primary" disabled={pwdSaving}>{pwdSaving ? 'Saving…' : 'Update Password'}</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
