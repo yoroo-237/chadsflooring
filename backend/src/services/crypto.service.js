@@ -3,7 +3,8 @@ const { HDNodeWallet } = require('ethers');
 const prisma = require('../db');
 
 const TOKEN        = process.env.BLOCKCYPHER_TOKEN;
-const CALLBACK_URL = `${process.env.RAILWAY_PUBLIC_URL}/api/webhooks/blockcypher`;
+const PUBLIC_URL   = process.env.RAILWAY_PUBLIC_URL;
+const CALLBACK_URL = PUBLIC_URL ? `${PUBLIC_URL}/api/webhooks/blockcypher` : null;
 
 const CHAIN    = { BTC: 'btc/main', LTC: 'ltc/main', DOGE: 'doge/main' };
 const ADDR_KEY = { BTC: 'btc_address', LTC: 'ltc_address', DOGE: 'doge_address' };
@@ -22,6 +23,10 @@ async function generateDepositAddress(currency, depositId) {
         new Error('BLOCKCYPHER_TOKEN not configured on the server.'),
         { status: 500 }
       );
+      if (!CALLBACK_URL) throw Object.assign(
+        new Error('RAILWAY_PUBLIC_URL not configured — cannot register BlockCypher webhook.'),
+        { status: 500 }
+      );
 
       const destination = await getSetting(ADDR_KEY[currency]);
       if (!destination) throw Object.assign(
@@ -29,15 +34,21 @@ async function generateDepositAddress(currency, depositId) {
         { status: 500 }
       );
 
-      const chain  = CHAIN[currency];
-      const fwdRes = await axios.post(
-        `https://api.blockcypher.com/v1/${chain}/forwards?token=${TOKEN}`,
-        { destination, callback_url: CALLBACK_URL }
-      );
+      const chain = CHAIN[currency];
+      let fwdRes;
+      try {
+        fwdRes = await axios.post(
+          `https://api.blockcypher.com/v1/${chain}/forwards?token=${TOKEN}`,
+          { destination, callback_url: CALLBACK_URL }
+        );
+      } catch (e) {
+        const msg = e.response?.data?.error || e.response?.data?.errors?.join(', ') || e.message;
+        throw Object.assign(new Error(`BlockCypher error: ${msg}`), { status: 502 });
+      }
 
       return {
         address:  fwdRes.data.input_address,
-        hookId:   fwdRes.data.id,   // forwarding ID — used for cleanup after confirmation
+        hookId:   fwdRes.data.id,
         ethIndex: null,
       };
     }

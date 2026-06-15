@@ -59,7 +59,13 @@ async function createDeposit(userId, currency) {
     data: { userId, currency, address: 'pending', status: 'awaiting', expiresAt },
   });
 
-  const { address, hookId, ethIndex } = await generateDepositAddress(currency, deposit.id);
+  let address, hookId, ethIndex;
+  try {
+    ({ address, hookId, ethIndex } = await generateDepositAddress(currency, deposit.id));
+  } catch (e) {
+    await prisma.deposit.delete({ where: { id: deposit.id } }).catch(() => {});
+    throw e;
+  }
 
   const updated = await prisma.deposit.update({
     where: { id: deposit.id },
