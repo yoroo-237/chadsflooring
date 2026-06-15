@@ -41,6 +41,7 @@ router.patch('/orders/:id/tracking', wrap(ordersCtrl.updateOrderTracking));
 // ─── Products ────────────────────────────────────────────────────────────────
 router.get('/products',              wrap(productsCtrl.listProducts));
 router.post('/products',             uploadProductImage, wrap(productsCtrl.createProduct));
+router.get('/products/:id',          wrap(productsCtrl.getProductById));
 router.put('/products/:id',          wrap(productsCtrl.updateProduct));
 router.delete('/products/:id',       wrap(productsCtrl.removeProduct));
 router.patch('/products/:id/stock',  wrap(productsCtrl.patchStock));

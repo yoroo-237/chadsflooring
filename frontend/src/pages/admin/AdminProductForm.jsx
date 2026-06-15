@@ -121,7 +121,7 @@ export default function AdminProductForm() {
                 <label className="admin-label">Category</label>
                 <select className="admin-select" value={form.categoryId} onChange={e => set('categoryId', e.target.value)}>
                   <option value="">None</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.label || c.name}</option>)}
                 </select>
               </div>
             </div>
