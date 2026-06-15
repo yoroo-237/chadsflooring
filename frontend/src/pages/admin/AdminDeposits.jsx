@@ -28,7 +28,7 @@ function truncateAddr(addr) {
 
 const fmt    = n => `$${Number(n || 0).toFixed(2)}`;
 const fmtC   = n => Number(n || 0).toFixed(8).replace(/\.?0+$/, '');
-const shortId = id => (id || '').slice(0, 8);
+const shortId = id => String(id || '').slice(0, 8);
 
 export default function AdminDeposits() {
   const [deposits, setDeposits]     = useState([]);

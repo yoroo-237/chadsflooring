@@ -5,7 +5,7 @@ import SearchInput from '../../components/admin/SearchInput';
 import Pagination from '../../components/admin/Pagination';
 
 const fmt    = n => `$${Number(n || 0).toFixed(2)}`;
-const shortId = id => (id || '').slice(0, 8);
+const shortId = id => String(id || '').slice(0, 8);
 
 export default function AdminTransactions() {
   const [rows, setRows]         = useState([]);
@@ -127,7 +127,7 @@ export default function AdminTransactions() {
                     <td><StatusBadge status={t.status || 'completed'} /></td>
                     <td style={{ color: '#6c757d', fontSize: 12, maxWidth: 160 }}>{t.note || t.description || '—'}</td>
                     <td style={{ fontSize: 12, color: '#6c757d' }}>
-                      {t.orderId ? `Order ${(t.orderId || '').slice(0, 6)}` : t.depositId ? `Deposit ${(t.depositId || '').slice(0, 6)}` : '—'}
+                      {t.orderId ? `Order #${t.orderId}` : t.depositId ? `Deposit #${t.depositId}` : '—'}
                     </td>
                     <td style={{ fontSize: 12, color: '#6c757d', whiteSpace: 'nowrap' }}>
                       {new Date(t.createdAt).toLocaleString()}
