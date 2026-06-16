@@ -75,7 +75,7 @@ export default function AdminNews() {
     try {
       await adminFetch(`/admin/news/${item.id}`, {
         method: 'PUT',
-        body: { ...item, isPublished: !item.isPublished, published: !item.isPublished },
+        body: { isPublished: !item.isPublished },
       });
       load();
     } catch (e) { setErr(e.message); }

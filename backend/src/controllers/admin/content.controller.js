@@ -43,8 +43,17 @@ async function updateNews(req, res) {
   const existing = await prisma.news.findUnique({ where: { id } });
   if (!existing) return error(res, 'News not found.', 404);
 
-  // Strip auto-managed fields and relation objects that Prisma rejects in data
-  const { id: _id, createdAt, author, published, ...data } = req.body;
+  const { title, slug, category, excerpt, body, imageUrl, tag, tagColor, isPublished } = req.body;
+  const data = {};
+  if (title      !== undefined) data.title      = title;
+  if (slug       !== undefined) data.slug        = slug;
+  if (category   !== undefined) data.category    = category;
+  if (excerpt    !== undefined) data.excerpt     = excerpt;
+  if (body       !== undefined) data.body        = body;
+  if (imageUrl   !== undefined) data.imageUrl    = imageUrl;
+  if (tag        !== undefined) data.tag         = tag;
+  if (tagColor   !== undefined) data.tagColor    = tagColor;
+  if (isPublished !== undefined) data.isPublished = Boolean(isPublished);
 
   const news = await prisma.news.update({ where: { id }, data });
   return success(res, news);
@@ -125,7 +134,26 @@ async function listGiveaways(req, res) {
 }
 
 async function createGiveaway(req, res) {
-  const giveaway = await prisma.giveaway.create({ data: req.body });
+  const {
+    title, badge, gradientFrom, gradientTo, gradientAngle,
+    value, description, prizes, endsAt, winnersCount, maxEntries, active,
+  } = req.body;
+  const giveaway = await prisma.giveaway.create({
+    data: {
+      title:         title || '',
+      badge:         badge || null,
+      gradientFrom:  gradientFrom  || '#4361ee',
+      gradientTo:    gradientTo    || '#7c3aed',
+      gradientAngle: parseInt(gradientAngle) || 135,
+      value:         value         || null,
+      description:   description   || null,
+      prizes:        Array.isArray(prizes) ? prizes : [],
+      endsAt:        endsAt ? new Date(endsAt) : null,
+      winnersCount:  parseInt(winnersCount) || 1,
+      maxEntries:    maxEntries ? parseInt(maxEntries) : null,
+      active:        active !== undefined ? Boolean(active) : true,
+    },
+  });
   return success(res, giveaway, 201);
 }
 
@@ -134,7 +162,24 @@ async function updateGiveaway(req, res) {
   const existing = await prisma.giveaway.findUnique({ where: { id } });
   if (!existing) return error(res, 'Giveaway not found.', 404);
 
-  const { id: _id, createdAt, ...data } = req.body;
+  const {
+    title, badge, gradientFrom, gradientTo, gradientAngle,
+    value, description, prizes, endsAt, winnersCount, maxEntries, active,
+  } = req.body;
+  const data = {};
+  if (title         !== undefined) data.title         = title;
+  if (badge         !== undefined) data.badge         = badge;
+  if (gradientFrom  !== undefined) data.gradientFrom  = gradientFrom;
+  if (gradientTo    !== undefined) data.gradientTo    = gradientTo;
+  if (gradientAngle !== undefined) data.gradientAngle = parseInt(gradientAngle) || 135;
+  if (value         !== undefined) data.value         = value;
+  if (description   !== undefined) data.description   = description;
+  if (prizes        !== undefined) data.prizes        = Array.isArray(prizes) ? prizes : [];
+  if (endsAt        !== undefined) data.endsAt        = endsAt ? new Date(endsAt) : null;
+  if (winnersCount  !== undefined) data.winnersCount  = parseInt(winnersCount) || 1;
+  if (maxEntries    !== undefined) data.maxEntries    = maxEntries ? parseInt(maxEntries) : null;
+  if (active        !== undefined) data.active        = Boolean(active);
+
   const giveaway = await prisma.giveaway.update({ where: { id }, data });
   return success(res, giveaway);
 }

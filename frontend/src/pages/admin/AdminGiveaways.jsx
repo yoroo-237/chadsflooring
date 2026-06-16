@@ -61,7 +61,7 @@ export default function AdminGiveaways() {
       gradientAngle: item.gradientAngle ?? 135,
       value: item.value || '',
       description: item.description || '',
-      prizes: item.prizes?.length ? item.prizes : [''],
+      prizes: Array.isArray(item.prizes) && item.prizes.length ? item.prizes : [''],
       endsAt: item.endsAt ? item.endsAt.slice(0, 16) : '',
       winnersCount: item.winnersCount ?? 1,
       maxEntries: item.maxEntries || '',
