@@ -29,8 +29,8 @@ export default function CategoryNav({ active }) {
         {categories.filter(c => c.id !== '-1').map(cat => (
           <button
             key={cat.id}
-            className={`catnav-tab${isActive(cat.id) ? ' active' : ''}`}
-            onClick={() => go(String(cat.id))}
+            className={`catnav-tab${isActive(cat.slug) ? ' active' : ''}`}
+            onClick={() => go(cat.slug)}
           >
             {cat.name || cat.label}
           </button>

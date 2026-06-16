@@ -40,7 +40,7 @@ export default function ShopPage() {
   const navigate = useNavigate();
 
   const [filterOpen, setFilterOpen]   = useState(false);
-  const [inStockOnly, setInStockOnly] = useState(true);
+  const [inStockOnly, setInStockOnly] = useState(false);
   const [sortOrder, setSortOrder]     = useState('none');
   const [viewMode, setViewMode]       = useState('grid');
   const [filters, setFilters]         = useState({});

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { adminFetch } from './utils/api';
 
-const EMPTY = { name: '', description: '', price: '', stock: '', sku: '', isActive: true, isFeatured: false, categoryId: '', brandId: '', imageUrl: '' };
+const EMPTY = { name: '', description: '', price: '', stock: 1, sku: '', isActive: true, isFeatured: false, categoryId: '', brandId: '', imageUrl: '' };
 
 export default function AdminProductForm() {
   const { id } = useParams();
