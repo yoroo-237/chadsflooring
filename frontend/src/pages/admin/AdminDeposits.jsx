@@ -48,6 +48,11 @@ export default function AdminDeposits() {
   const [expireId, setExpireId]   = useState(null);
   const [expiring, setExpiring]   = useState(false);
 
+  // Cleanup expired
+  const [cleanupLoading, setCleanupLoading] = useState(false);
+  const [cleanupMsg, setCleanupMsg]         = useState(null);
+  const [cleanupConfirm, setCleanupConfirm] = useState(false);
+
   // View address modal
   const [addrModal, setAddrModal] = useState(null); // { address, currency }
   const [copied, setCopied]       = useState(false);
@@ -98,6 +103,17 @@ export default function AdminDeposits() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const doCleanup = async () => {
+    setCleanupLoading(true); setCleanupMsg(null); setCleanupConfirm(false);
+    try {
+      const data = await adminFetch('/admin/deposits/cleanup', { method: 'POST' });
+      setCleanupMsg(`${data.cleaned} deposit${data.cleaned !== 1 ? 's' : ''} expired and forwards released.`);
+      load();
+    } catch (e) {
+      setCleanupMsg(`Error: ${e.message}`);
+    } finally { setCleanupLoading(false); }
+  };
+
   const openConfirm = d => {
     setConfirmForm({ usdAmount: String(d.usdAmount || d.expectedUsd || ''), note: '' });
     setConfirmModal({ id: d.id, currency: d.currency });
@@ -124,7 +140,21 @@ export default function AdminDeposits() {
           <option value="">All currencies</option>
           {Object.keys(CRYPTO_COLORS).map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+        <button
+          className="admin-btn admin-btn-danger admin-btn-sm"
+          style={{ marginLeft: 'auto' }}
+          disabled={cleanupLoading}
+          onClick={() => setCleanupConfirm(true)}
+        >
+          {cleanupLoading ? 'Cleaning…' : 'Cleanup Expired'}
+        </button>
       </div>
+      {cleanupMsg && (
+        <div style={{ marginBottom: 12, fontSize: 13, color: cleanupMsg.startsWith('Error') ? '#e53935' : '#2e7d32', background: cleanupMsg.startsWith('Error') ? 'rgba(229,57,53,.08)' : 'rgba(46,125,50,.08)', border: `1px solid ${cleanupMsg.startsWith('Error') ? 'rgba(229,57,53,.25)' : 'rgba(46,125,50,.25)'}`, borderRadius: 8, padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{cleanupMsg}</span>
+          <button style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', lineHeight: 1 }} onClick={() => setCleanupMsg(null)}>×</button>
+        </div>
+      )}
 
       {/* Process reference panel */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -293,6 +323,19 @@ export default function AdminDeposits() {
           loading={expiring}
           onConfirm={doExpire}
           onCancel={() => setExpireId(null)}
+        />
+      )}
+
+      {/* Cleanup expired confirm */}
+      {cleanupConfirm && (
+        <ConfirmModal
+          title="Cleanup all expired deposits?"
+          message="All awaiting/partial deposits past their expiry time will be marked expired and their BlockCypher forwards will be deleted."
+          confirmLabel="Cleanup Expired"
+          danger
+          loading={cleanupLoading}
+          onConfirm={doCleanup}
+          onCancel={() => setCleanupConfirm(false)}
         />
       )}
 

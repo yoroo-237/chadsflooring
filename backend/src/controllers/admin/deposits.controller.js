@@ -1,7 +1,7 @@
 const prisma = require('../../db');
 const { success, error } = require('../../utils/apiResponse');
 const { parsePaginationParams, buildPagination } = require('../../utils/pagination');
-const { confirmDepositManually } = require('../../services/wallet.service');
+const { confirmDepositManually, cleanupExpiredDeposits } = require('../../services/wallet.service');
 
 async function listDeposits(req, res, next) {
   try {
@@ -65,4 +65,11 @@ async function expireDeposit(req, res, next) {
   } catch (e) { next(e); }
 }
 
-module.exports = { listDeposits, confirmDeposit, expireDeposit };
+async function cleanup(req, res, next) {
+  try {
+    const cleaned = await cleanupExpiredDeposits();
+    return success(res, { cleaned });
+  } catch (e) { next(e); }
+}
+
+module.exports = { listDeposits, confirmDeposit, expireDeposit, cleanup };

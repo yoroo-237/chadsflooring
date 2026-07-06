@@ -49,6 +49,7 @@ router.patch('/products/:id/stock',  wrap(productsCtrl.patchStock));
 
 // ─── Deposits ────────────────────────────────────────────────────────────────
 router.get('/deposits',                wrap(depositsCtrl.listDeposits));
+router.post('/deposits/cleanup',       wrap(depositsCtrl.cleanup));
 router.patch('/deposits/:id/confirm',  wrap(depositsCtrl.confirmDeposit));
 router.patch('/deposits/:id/expire',   wrap(depositsCtrl.expireDeposit));
 

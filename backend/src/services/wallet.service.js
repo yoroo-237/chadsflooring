@@ -1,5 +1,5 @@
 const prisma = require('../db');
-const { generateDepositAddress } = require('./crypto.service');
+const { generateDepositAddress, deleteBlockCypherForwarding } = require('./crypto.service');
 const { formatTxnId } = require('../utils/formatters');
 const { parsePaginationParams, buildPagination } = require('../utils/pagination');
 
@@ -164,10 +164,37 @@ async function getDeposits(userId, { page = 1, limit = 20 } = {}) {
   };
 }
 
+async function cleanupExpiredDeposits() {
+  const now = new Date();
+  const expired = await prisma.deposit.findMany({
+    where: {
+      status:    { in: ['awaiting', 'partial'] },
+      expiresAt: { lt: now },
+    },
+    select: { id: true, hookId: true, currency: true },
+  });
+
+  if (expired.length === 0) return 0;
+
+  await Promise.all(
+    expired
+      .filter(d => d.hookId && ['BTC', 'LTC', 'DOGE'].includes(d.currency))
+      .map(d => deleteBlockCypherForwarding(d.currency, d.hookId))
+  );
+
+  await prisma.deposit.updateMany({
+    where: { id: { in: expired.map(d => d.id) } },
+    data:  { status: 'expired' },
+  });
+
+  return expired.length;
+}
+
 module.exports = {
   getWallet,
   createDeposit,
   confirmDepositManually,
   getTransactions,
   getDeposits,
+  cleanupExpiredDeposits,
 };
