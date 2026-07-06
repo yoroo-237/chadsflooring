@@ -17,6 +17,7 @@ const settingsCtrl     = require('../controllers/admin/settings.controller');
 const categoriesCtrl   = require('../controllers/categories.controller');
 const brandsCtrl       = require('../controllers/brands.controller');
 const ethCtrl          = require('../controllers/admin/eth.controller');
+const utxoCtrl         = require('../controllers/admin/utxo.controller');
 
 const router = Router();
 
@@ -90,8 +91,9 @@ router.put('/giveaways/:id',           wrap(contentCtrl.updateGiveaway));
 router.delete('/giveaways/:id',        wrap(contentCtrl.deleteGiveaway));
 router.get('/giveaways/:id/entries',   wrap(contentCtrl.getGiveawayEntries));
 
-// ─── ETH Sweep ────────────────────────────────────────────────────────────────
-router.post('/eth/sweep', wrap(ethCtrl.sweepEth));
+// ─── Sweeps ───────────────────────────────────────────────────────────────────
+router.post('/eth/sweep',              wrap(ethCtrl.sweepEth));
+router.post('/utxo/sweep/:currency',   wrap(utxoCtrl.sweepUtxo));
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
 router.get('/analytics', wrap(analyticsCtrl.getAnalytics));

@@ -28,9 +28,16 @@ export default function AdminSettings() {
   const [err, setErr]               = useState(null);
   const [saved, setSaved]           = useState(false);
   const [tab, setTab]               = useState('General');
-  const [sweeping, setSweeping]     = useState(false);
-  const [sweepResult, setSweepResult] = useState(null);
+  // ETH sweep
+  const [sweeping, setSweeping]         = useState(false);
+  const [sweepResult, setSweepResult]   = useState(null);
   const [sweepConfirm, setSweepConfirm] = useState(false);
+
+  // UTXO sweep (BTC / LTC / DOGE)
+  const [utxoConfirm, setUtxoConfirm]   = useState(null);   // null | 'BTC' | 'LTC' | 'DOGE'
+  const [utxoSweeping, setUtxoSweeping] = useState(false);
+  const [utxoResult, setUtxoResult]     = useState(null);    // { currency, swept, results, skipped }
+  const [showSeed, setShowSeed]         = useState(false);
 
   useEffect(() => {
     adminFetch('/admin/settings')
@@ -47,6 +54,16 @@ export default function AdminSettings() {
       setSweepResult(r);
     } catch (e) { setErr(e.message); }
     finally { setSweeping(false); }
+  };
+
+  const doUtxoSweep = async () => {
+    const currency = utxoConfirm;
+    setUtxoSweeping(true); setUtxoResult(null); setUtxoConfirm(null); setErr(null);
+    try {
+      const r = await adminFetch(`/admin/utxo/sweep/${currency}`, { method: 'POST' });
+      setUtxoResult({ ...r, currency });
+    } catch (e) { setErr(e.message); }
+    finally { setUtxoSweeping(false); }
   };
 
   const submit = async e => {
@@ -223,14 +240,14 @@ export default function AdminSettings() {
           <>
             <Section title="Destination Addresses">
               <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 16 }}>
-                Funds sent by customers are automatically forwarded to these addresses. Save after editing.
+                Your personal wallet addresses. Funds received land in HD-derived deposit addresses — use the sweep buttons below to collect them. Save after editing.
               </div>
               {[
-                { key: 'btc_address',  label: 'Bitcoin (BTC)',   color: '#f7931a', placeholder: 'bc1q...',   note: 'Auto-forwarded via BlockCypher' },
-                { key: 'doge_address', label: 'Dogecoin (DOGE)', color: '#c2a633', placeholder: 'D...',      note: 'Auto-forwarded via BlockCypher' },
-                { key: 'ltc_address',  label: 'Litecoin (LTC)',  color: '#345d9d', placeholder: 'ltc1q...', note: 'Auto-forwarded via BlockCypher' },
-                { key: 'eth_address',  label: 'Ethereum (ETH)',  color: '#627eea', placeholder: '0x...',     note: 'Sweep manually using the button below' },
-                { key: 'xmr_address',  label: 'Monero (XMR)',   color: '#ff6600', placeholder: '4...',      note: 'Manual confirmation required' },
+                { key: 'btc_address',  label: 'Bitcoin (BTC)',   color: '#f7931a', placeholder: '1... or bc1q...', note: 'Sweep with button below' },
+                { key: 'ltc_address',  label: 'Litecoin (LTC)',  color: '#345d9d', placeholder: 'L...',            note: 'Sweep with button below' },
+                { key: 'doge_address', label: 'Dogecoin (DOGE)', color: '#c2a633', placeholder: 'D...',            note: 'Sweep with button below' },
+                { key: 'eth_address',  label: 'Ethereum (ETH)',  color: '#627eea', placeholder: '0x...',           note: 'Sweep with button below' },
+                { key: 'xmr_address',  label: 'Monero (XMR)',   color: '#ff6600', placeholder: '4...',            note: 'Manual confirmation required' },
               ].map(f => (
                 <div key={f.key} className="admin-form-group">
                   <label className="admin-label" style={{ color: f.color }}>
@@ -246,6 +263,39 @@ export default function AdminSettings() {
                   />
                 </div>
               ))}
+            </Section>
+
+            <Section title="HD Wallet Seed (BTC / LTC / DOGE)">
+              <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 12, lineHeight: 1.6 }}>
+                12-word BIP39 mnemonic used to derive unique deposit addresses for Bitcoin, Litecoin and Dogecoin.
+                The same seed also lets you sweep funds back to your destination addresses using the button below.
+                <strong> Keep this offline — whoever has this phrase controls the funds.</strong>
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-label">Mnemonic phrase</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    className="admin-input"
+                    type={showSeed ? 'text' : 'password'}
+                    value={s.btc_hd_seed || ''}
+                    onChange={e => set('btc_hd_seed', e.target.value)}
+                    placeholder="word1 word2 word3 … word12"
+                    style={{ fontFamily: 'monospace', fontSize: 12, flex: 1 }}
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-secondary admin-btn-sm"
+                    onClick={() => setShowSeed(v => !v)}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    {showSeed ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                <div style={{ fontSize: 12, color: '#6c757d', marginTop: 4 }}>
+                  You can use the same phrase as your ETH HD seed — BIP44 coin-type paths ensure completely separate keys.
+                </div>
+              </div>
             </Section>
 
             <Section title="ETH Sweep">
@@ -297,6 +347,69 @@ export default function AdminSettings() {
               {!s.eth_address && (
                 <div style={{ fontSize: 12, color: '#6c757d', marginTop: 8 }}>
                   Enter your ETH address above and save first.
+                </div>
+              )}
+            </Section>
+
+            <Section title="BTC / LTC / DOGE Sweep">
+              <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 14, lineHeight: 1.6 }}>
+                Collects all crypto sitting in confirmed deposit addresses and sends it to the destination addresses configured above.
+                Funds land in HD-derived addresses — this button signs and broadcasts the transfer automatically.
+              </div>
+
+              {utxoResult && (
+                <div style={{ marginBottom: 14, background: utxoResult.swept > 0 ? 'rgba(67,160,71,.08)' : 'rgba(108,117,125,.08)', border: `1px solid ${utxoResult.swept > 0 ? 'rgba(67,160,71,.25)' : 'rgba(108,117,125,.2)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                    {utxoResult.swept > 0 ? `✓ ${utxoResult.swept} address(es) swept (${utxoResult.currency})` : `Nothing to sweep (${utxoResult.currency})`}
+                  </div>
+                  {utxoResult.results?.map((r, i) => (
+                    <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', color: '#2e7d32', marginBottom: 2 }}>
+                      {r.amount} {r.currency} → <span style={{ color: '#6c757d' }}>{r.txHash?.slice(0, 16)}…</span>
+                    </div>
+                  ))}
+                  {utxoResult.skipped?.filter(s => s.reason !== 'empty').map((s, i) => (
+                    <div key={i} style={{ fontSize: 12, color: '#e65100', marginBottom: 2 }}>
+                      ⚠ {s.address?.slice(0, 12)}… — {s.reason}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {[
+                  { currency: 'BTC', color: '#f7931a', addr: s.btc_address },
+                  { currency: 'LTC', color: '#345d9d', addr: s.ltc_address },
+                  { currency: 'DOGE', color: '#c2a633', addr: s.doge_address },
+                ].map(({ currency, color, addr }) => (
+                  utxoConfirm === currency ? (
+                    <div key={currency} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13, color: '#e65100', fontWeight: 600 }}>
+                        Send all {currency} to {addr?.slice(0, 12)}… ?
+                      </span>
+                      <button type="button" className="admin-btn admin-btn-success admin-btn-sm" onClick={doUtxoSweep} disabled={utxoSweeping}>
+                        {utxoSweeping ? 'Sending…' : 'Yes, sweep'}
+                      </button>
+                      <button type="button" className="admin-btn admin-btn-secondary admin-btn-sm" onClick={() => setUtxoConfirm(null)}>
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      key={currency}
+                      type="button"
+                      className="admin-btn admin-btn-sm"
+                      style={{ background: `${color}22`, color, border: `1px solid ${color}55`, fontWeight: 700 }}
+                      disabled={utxoSweeping || !addr || !s.btc_hd_seed}
+                      onClick={() => setUtxoConfirm(currency)}
+                    >
+                      {utxoSweeping && utxoConfirm === currency ? `Sweeping ${currency}…` : `Sweep ${currency}`}
+                    </button>
+                  )
+                ))}
+              </div>
+              {!s.btc_hd_seed && (
+                <div style={{ fontSize: 12, color: '#6c757d', marginTop: 8 }}>
+                  Enter your HD seed phrase above and save first.
                 </div>
               )}
             </Section>

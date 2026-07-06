@@ -51,6 +51,31 @@ async function createDeposit(userId, currency) {
     throw Object.assign(new Error('Unsupported currency.'), { status: 422 });
   }
 
+  // Return the existing active deposit if one is still open — avoids burning a BlockCypher forward slot.
+  const existing = await prisma.deposit.findFirst({
+    where: {
+      userId,
+      currency,
+      status:    { in: ['awaiting', 'partial'] },
+      expiresAt: { gt: new Date() },
+      address:   { not: 'pending' },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (existing) {
+    return {
+      depositId: existing.id,
+      address:   existing.address,
+      currency:  existing.currency,
+      expiresAt: existing.expiresAt,
+    };
+  }
+
+  // Free expired BlockCypher forwards before requesting a new one.
+  await cleanupExpiredDeposits().catch(e =>
+    console.error('[createDeposit] pre-cleanup error:', e.message)
+  );
+
   const setting = await prisma.siteSetting.findUnique({ where: { key: 'deposit_expiry_hours' } });
   const expiryHours = parseInt(setting?.value) || 12;
   const expiresAt = new Date(Date.now() + expiryHours * 3600 * 1000);
