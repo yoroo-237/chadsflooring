@@ -113,10 +113,15 @@ export function AppProvider({ children }) {
     const items = Object.values(grouped);
     const body = {
       items,
-      shippingAddress: formData?.address || '',
       paymentMethod: formData?.payment || 'XMR',
-      name: formData?.name || '',
-      email: formData?.email || '',
+      shipping: {
+        name:    formData?.name    || '',
+        email:   formData?.email   || '',
+        address: formData?.address || '',
+        city:    formData?.city    || '',
+        postal:  formData?.postal  || '',
+        country: formData?.country || 'US',
+      },
     };
     const data = await api.post('/orders', body);
     const order = data.order || data;

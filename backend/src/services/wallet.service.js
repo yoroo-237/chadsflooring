@@ -112,6 +112,15 @@ async function confirmDepositManually(depositId, usdAmount, adminId, txHash = nu
     throw Object.assign(new Error('Deposit cannot be confirmed.'), { status: 422 });
   }
 
+  const minSetting = await prisma.siteSetting.findUnique({ where: { key: 'min_deposit' } });
+  const minDeposit = parseFloat(minSetting?.value) || 0;
+  if (minDeposit > 0 && usdAmount < minDeposit) {
+    throw Object.assign(
+      new Error(`Deposit of $${usdAmount.toFixed(2)} is below the minimum of $${minDeposit.toFixed(2)}.`),
+      { status: 422 }
+    );
+  }
+
   return prisma.$transaction(async tx => {
     const txn = await tx.transaction.create({
       data: {

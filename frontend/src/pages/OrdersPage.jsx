@@ -65,7 +65,7 @@ export default function OrdersPage() {
                 const total    = Number(order.total || order.totalAmount || 0);
                 const status   = order.status || 'Processing';
                 const statusColor = STATUS_COLORS[status] || '#6c757d';
-                const date     = order.date || order.createdAt;
+                const date     = order.placedAt || order.date || order.createdAt;
                 return (
                   <div key={order.id} className="order-card">
                     <div className="order-card-header">
@@ -102,9 +102,12 @@ export default function OrdersPage() {
                       })}
                     </div>
 
-                    {(order.address || order.shippingAddress) && (
+                    {(order.shipAddress || order.address || order.shippingAddress) && (
                       <div className="order-address">
-                        <span className="order-address-label">Delivery:</span> {order.address || order.shippingAddress}
+                        <span className="order-address-label">Delivery:</span>{' '}
+                        {order.shipAddress
+                          ? `${order.shipAddress}, ${order.shipCity} ${order.shipPostal}, ${order.shipCountry}`
+                          : (order.address || order.shippingAddress)}
                       </div>
                     )}
                   </div>

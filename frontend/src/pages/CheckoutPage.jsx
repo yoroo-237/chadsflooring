@@ -67,10 +67,13 @@ export default function CheckoutPage() {
     setPlacing(true); setServerErr('');
     try {
       const order = await placeOrder({
-        address: `${form.address}, ${form.city} ${form.postal}`,
+        name:    form.name,
+        email:   form.email,
+        address: form.address,
+        city:    form.city,
+        postal:  form.postal,
+        country: form.country,
         payment: form.payment,
-        name: form.name,
-        email: form.email,
       });
       setPlaced(order);
     } catch (err) {
@@ -189,8 +192,7 @@ export default function CheckoutPage() {
                 {[
                   { value: 'XMR', label: 'Monero (XMR)', icon: <XmrIcon /> },
                   { value: 'BTC', label: 'Bitcoin (BTC)', icon: '₿' },
-                  { value: 'DOGE', label: 'Dogecoin (DOGE)', icon: 'Ð' },
-                  { value: 'LTC', label: 'Litecoin (LTC)', icon: 'Ł' },
+                  { value: 'ETH', label: 'Ethereum (ETH)', icon: 'Ξ' },
                 ].map(opt => (
                   <label key={opt.value} className={`payment-option${form.payment === opt.value ? ' active' : ''}`}>
                     <input type="radio" name="payment" value={opt.value} checked={form.payment === opt.value} onChange={handleChange} />

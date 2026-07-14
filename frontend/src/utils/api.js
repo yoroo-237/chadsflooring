@@ -67,9 +67,13 @@ export async function apiCall(endpoint, options = {}) {
   }
 
   const json = await res.json();
+  // Throw on explicit API errors so callers don't silently treat error responses as success.
+  if (json.success === false) {
+    const err = new Error(json.error || 'Request failed');
+    if (json.errors) err.errors = json.errors;
+    throw err;
+  }
   // Auto-unwrap the { success: true, data: {...} } envelope used by every backend route.
-  // Error responses ({ success: false, error: '...' }) are returned as-is so callers
-  // can inspect .error / .success when needed.
   return json.success === true && 'data' in json ? json.data : json;
 }
 
