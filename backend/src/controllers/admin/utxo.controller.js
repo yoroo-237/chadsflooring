@@ -74,8 +74,10 @@ async function sweepUtxo(req, res, next) {
         const balance = balRes.data.balance || 0;
         if (balance === 0) { skipped.push({ address: dep.address, reason: 'empty' }); continue; }
 
-        // Fee estimate: P2PKH single-input sweep ≈ 192 bytes
-        const estimatedFee = Math.ceil(192 * lowFeePerKb / 1000);
+        // Fee estimate: P2PKH sweep (10+148+34 = 192 vBytes) + 100 vBytes safety margin
+        // BlockCypher's internal calculation can differ slightly; the extra buffer avoids
+        // "not enough funds after fees" rejections on their end.
+        const estimatedFee = Math.ceil(300 * lowFeePerKb / 1000);
         const sendAmount   = balance - estimatedFee;
         if (sendAmount < 546) { // below dust threshold
           skipped.push({ address: dep.address, reason: `balance (${balance} sats) too low to cover fees (~${estimatedFee} sats)` });
