@@ -3,8 +3,9 @@ const axios  = require('axios');
 const prisma = require('../../db');
 const { success, error } = require('../../utils/apiResponse');
 
-// Build a canonical DER-encoded Bitcoin signature (+ SIGHASH_ALL 0x01).
-// Uses ethers.js SigningKey.sign() which already applies low-S normalisation.
+// Build a canonical DER-encoded Bitcoin signature.
+// BlockCypher validates signatures as raw DER (sig[1] == sig.size()-2) and appends
+// the SIGHASH_ALL byte itself — do NOT append '01' here or the length check fails.
 function buildDerSig(signingKey, hashHex) {
   const sig = signingKey.sign(Buffer.from(hashHex, 'hex'));
 
@@ -19,7 +20,7 @@ function buildDerSig(signingKey, hashHex) {
   const rEnc = derInt(sig.r);
   const sEnc = derInt(sig.s);
   const body = Buffer.concat([rEnc, sEnc]);
-  return Buffer.concat([Buffer.from([0x30, body.length]), body]).toString('hex') + '01';
+  return Buffer.concat([Buffer.from([0x30, body.length]), body]).toString('hex');
 }
 
 const CHAIN        = { BTC: 'btc/main', LTC: 'ltc/main', DOGE: 'doge/main' };
