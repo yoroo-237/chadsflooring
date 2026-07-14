@@ -1,37 +1,12 @@
-const { HDNodeWallet, SigningKey } = require('ethers');
+const { secp256k1 }  = require('@noble/curves/secp256k1');
+const { HDNodeWallet } = require('ethers');
 const axios  = require('axios');
 const prisma = require('../../db');
 const { success, error } = require('../../utils/apiResponse');
 
-const CHAIN       = { BTC: 'btc/main', LTC: 'ltc/main', DOGE: 'doge/main' };
-const COIN_TYPE   = { BTC: 0, LTC: 2, DOGE: 3 };
+const CHAIN        = { BTC: 'btc/main', LTC: 'ltc/main', DOGE: 'doge/main' };
+const COIN_TYPE    = { BTC: 0, LTC: 2, DOGE: 3 };
 const ADDR_SETTING = { BTC: 'btc_address', LTC: 'ltc_address', DOGE: 'doge_address' };
-
-// secp256k1 curve order — used for low-S normalization (BIP62)
-const SECP256K1_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;
-
-// Convert an ethers Signature to Bitcoin DER format with SIGHASH_ALL (0x01) appended.
-function toDerSignature(sig) {
-  let s = BigInt(sig.s);
-  // BIP62: use the lower of s and n-s
-  if (s > SECP256K1_N / 2n) s = SECP256K1_N - s;
-
-  let rBuf = Buffer.from(BigInt(sig.r).toString(16).padStart(64, '0'), 'hex');
-  let sBuf = Buffer.from(s.toString(16).padStart(64, '0'), 'hex');
-
-  // Trim unnecessary leading zero bytes (DER integers must be minimal)
-  while (rBuf.length > 1 && rBuf[0] === 0x00) rBuf = rBuf.slice(1);
-  while (sBuf.length > 1 && sBuf[0] === 0x00) sBuf = sBuf.slice(1);
-  // If high bit is set, prepend 0x00 so it's not read as a negative number
-  if (rBuf[0] & 0x80) rBuf = Buffer.concat([Buffer.from([0x00]), rBuf]);
-  if (sBuf[0] & 0x80) sBuf = Buffer.concat([Buffer.from([0x00]), sBuf]);
-
-  const seq = Buffer.concat([
-    Buffer.from([0x02, rBuf.length]), rBuf,
-    Buffer.from([0x02, sBuf.length]), sBuf,
-  ]);
-  return Buffer.concat([Buffer.from([0x30, seq.length]), seq, Buffer.from([0x01])]).toString('hex');
-}
 
 async function sweepUtxo(req, res, next) {
   try {
@@ -41,7 +16,6 @@ async function sweepUtxo(req, res, next) {
     const TOKEN = process.env.BLOCKCYPHER_TOKEN;
     if (!TOKEN) return error(res, 'BLOCKCYPHER_TOKEN not configured.', 500);
 
-    // Seed from DB (admin settings) takes priority over env var
     const seedSetting = await prisma.siteSetting.findUnique({ where: { key: 'btc_hd_seed' } });
     const phrase = seedSetting?.value || process.env.BTC_HD_SEED;
     if (!phrase) return error(res, 'BTC HD Seed not configured — add it in Settings → Crypto.', 500);
@@ -55,8 +29,7 @@ async function sweepUtxo(req, res, next) {
     const chain    = CHAIN[currency];
     const coinType = COIN_TYPE[currency];
 
-    // Fetch chain fee data once
-    const chainInfo  = await axios.get(`https://api.blockcypher.com/v1/${chain}?token=${TOKEN}`);
+    const chainInfo   = await axios.get(`https://api.blockcypher.com/v1/${chain}?token=${TOKEN}`);
     const lowFeePerKb = chainInfo.data.low_fee_per_kb || 10000;
 
     const deposits = await prisma.deposit.findMany({
@@ -69,25 +42,22 @@ async function sweepUtxo(req, res, next) {
 
     for (const dep of deposits) {
       try {
-        // Check address balance
         const balRes  = await axios.get(`https://api.blockcypher.com/v1/${chain}/addrs/${dep.address}/balance?token=${TOKEN}`);
         const balance = balRes.data.balance || 0;
         if (balance === 0) { skipped.push({ address: dep.address, reason: 'empty' }); continue; }
 
-        // Fee estimate: P2PKH sweep (10+148+34 = 192 vBytes) + 100 vBytes safety margin
-        // BlockCypher's internal calculation can differ slightly; the extra buffer avoids
-        // "not enough funds after fees" rejections on their end.
-        const estimatedFee = Math.ceil(300 * lowFeePerKb / 1000);
+        // P2PKH single-input sweep: 192 vBytes theoretical + 60 vBytes safety margin for BlockCypher
+        const estimatedFee = Math.ceil(252 * lowFeePerKb / 1000);
         const sendAmount   = balance - estimatedFee;
-        if (sendAmount < 546) { // below dust threshold
+        if (sendAmount < 546) {
           skipped.push({ address: dep.address, reason: `balance (${balance} sats) too low to cover fees (~${estimatedFee} sats)` });
           continue;
         }
 
         // Derive private key for this deposit address
-        const wallet     = HDNodeWallet.fromPhrase(phrase, undefined, `m/44'/${coinType}'/0'/0/${dep.id}`);
-        const signingKey = new SigningKey(wallet.privateKey);
-        const pubKey     = wallet.publicKey.slice(2); // compressed hex, no 0x
+        const wallet      = HDNodeWallet.fromPhrase(phrase, undefined, `m/44'/${coinType}'/0'/0/${dep.id}`);
+        const privKeyBytes = Buffer.from(wallet.privateKey.slice(2), 'hex');
+        const pubKey      = wallet.publicKey.slice(2); // same key used by deriveUtxoAddress
 
         // Build unsigned transaction via BlockCypher
         const newTxRes = await axios.post(
@@ -96,8 +66,11 @@ async function sweepUtxo(req, res, next) {
         );
         const { tx, tosign } = newTxRes.data;
 
-        // Sign each input hash and DER-encode
-        const signatures = tosign.map(hash => toDerSignature(signingKey.sign(Buffer.from(hash, 'hex'))));
+        // Sign with @noble/curves — produces canonical DER + append SIGHASH_ALL (0x01)
+        const signatures = tosign.map(hash => {
+          const sig = secp256k1.sign(Buffer.from(hash, 'hex'), privKeyBytes, { lowS: true });
+          return Buffer.from(sig.toDERRawBytes()).toString('hex') + '01';
+        });
 
         // Broadcast
         const sendRes = await axios.post(
