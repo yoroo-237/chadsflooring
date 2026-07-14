@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useApp } from '../context/AppContext';
 import AccountSidebar from '../components/AccountSidebar';
@@ -151,6 +151,8 @@ export default function WalletPage() {
   const [currentDeposit, setCurrentDeposit] = useState(null);
   const [creating, setCreating]     = useState(false);
   const [timeLeft, setTimeLeft]     = useState('');
+  const [checkingChain, setCheckingChain] = useState(false);
+  const pollingRef = useRef(null);
 
   useEffect(() => {
     api.get('/wallet/balance').then(d => { if (d?.balance != null) setBalance(Number(d.balance)); }).catch(() => {});
@@ -165,6 +167,33 @@ export default function WalletPage() {
     const id = setInterval(() => setTimeLeft(formatCountdown(currentDeposit.expiresAt)), 1000);
     return () => clearInterval(id);
   }, [currentDeposit?.expiresAt, modalStep]);
+
+  // Blockchain polling — every 30s while deposit modal is open (except XMR)
+  useEffect(() => {
+    if (modalStep !== 'address' || !currentDeposit?.id || currentDeposit.currency === 'XMR') return;
+
+    const poll = async () => {
+      setCheckingChain(true);
+      try {
+        const result = await api.post(`/wallet/deposits/${currentDeposit.id}/check`);
+        if (result.status === 'confirmed') {
+          if (result.newBalance != null) setBalance(result.newBalance);
+          api.get('/wallet/deposits').then(d => setDeposits(d.deposits || d || [])).catch(() => {});
+          showToast('Deposit confirmed! Your balance has been updated.', 'success');
+          clearInterval(pollingRef.current);
+          closeModal();
+        } else if (result.status === 'expired') {
+          showToast('Deposit has expired.', 'error');
+          clearInterval(pollingRef.current);
+          closeModal();
+        }
+      } catch { /* polling errors are silent */ }
+      finally { setCheckingChain(false); }
+    };
+
+    pollingRef.current = setInterval(poll, 30000);
+    return () => clearInterval(pollingRef.current);
+  }, [modalStep, currentDeposit?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCopy = (text) => {
     navigator.clipboard?.writeText(text).then(() => {
@@ -190,8 +219,10 @@ export default function WalletPage() {
   };
 
   const closeModal = () => {
+    clearInterval(pollingRef.current);
     setModalStep(null);
     setAgreed(false);
+    setCheckingChain(false);
   };
 
   const depositAddress  = currentDeposit?.address || '';
@@ -464,6 +495,16 @@ export default function WalletPage() {
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Expires in </span>
               <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 16 }}>{timeLeft}</span>
             </div>
+
+            {/* Polling indicator */}
+            {checkingChain && (
+              <div style={{ textAlign: 'center', fontSize: 12, color: '#1976d2', marginBottom: 8 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(25,118,210,.08)', borderRadius: 20, padding: '4px 12px' }}>
+                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#1976d2', animation: 'pulse 1s infinite' }} />
+                  Checking blockchain for new confirmations…
+                </span>
+              </div>
+            )}
 
             {/* How it works guide */}
             {(() => {

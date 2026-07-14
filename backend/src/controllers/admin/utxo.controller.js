@@ -110,7 +110,10 @@ async function sweepUtxo(req, res, next) {
           currency,
         });
       } catch (e) {
-        const msg = e.response?.data?.error || e.response?.data?.errors?.join(', ') || e.message;
+        const errData = e.response?.data;
+        const msg = (errData?.error && typeof errData.error === 'string' ? errData.error : null)
+          || errData?.errors?.map(x => typeof x === 'string' ? x : (x?.message || x?.error || JSON.stringify(x))).join(', ')
+          || e.message;
         skipped.push({ address: dep.address, reason: msg });
       }
     }
