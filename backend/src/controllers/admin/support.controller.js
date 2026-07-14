@@ -143,10 +143,7 @@ async function getTicket(req, res, next) {
     where: { id },
     include: {
       user:     { select: { id: true, username: true, email: true } },
-      messages: {
-        orderBy: { createdAt: 'asc' },
-        include: { user: { select: { id: true, username: true } } },
-      },
+      messages: { orderBy: { createdAt: 'asc' } },
     },
   });
   if (!ticket) return error(res, 'Ticket not found.', 404);
