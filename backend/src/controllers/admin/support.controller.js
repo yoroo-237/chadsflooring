@@ -134,6 +134,26 @@ async function updatePriority(req, res, next) {
   } catch (e) { next(e); }
 }
 
+async function getTicket(req, res, next) {
+  try {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return error(res, 'Invalid ticket ID.', 400);
+
+  const ticket = await prisma.supportTicket.findUnique({
+    where: { id },
+    include: {
+      user:     { select: { id: true, username: true, email: true } },
+      messages: {
+        orderBy: { createdAt: 'asc' },
+        include: { user: { select: { id: true, username: true } } },
+      },
+    },
+  });
+  if (!ticket) return error(res, 'Ticket not found.', 404);
+  return success(res, { ticket });
+  } catch (e) { next(e); }
+}
+
 async function getStats(req, res, next) {
   try {
   const statuses = ['open', 'in_progress', 'resolved', 'closed'];
@@ -142,4 +162,4 @@ async function getStats(req, res, next) {
   } catch (e) { next(e); }
 }
 
-module.exports = { listTickets, getStats, createMessage, updateTicketStatus, assignTicket, updatePriority };
+module.exports = { listTickets, getTicket, getStats, createMessage, updateTicketStatus, assignTicket, updatePriority };

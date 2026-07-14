@@ -61,6 +61,8 @@ router.get('/transactions', wrap(transactionsCtrl.listTransactions));
 router.get('/support/stats',                      wrap(supportCtrl.getStats));
 router.get('/support',                            wrap(supportCtrl.listTickets));
 router.get('/support/tickets',                    wrap(supportCtrl.listTickets));
+router.get('/support/tickets/:id',                wrap(supportCtrl.getTicket));
+router.get('/support/:id',                        wrap(supportCtrl.getTicket));
 router.post('/support/tickets/:id/messages',      wrap(supportCtrl.createMessage));
 router.patch('/support/tickets/:id/status',       wrap(supportCtrl.updateTicketStatus));
 router.patch('/support/tickets/:id/assign',       wrap(supportCtrl.assignTicket));

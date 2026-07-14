@@ -83,12 +83,12 @@ export default function OrdersPage() {
 
                     <div className="order-items-preview">
                       {items.map((item, i) => {
-                        const product = item.product ? normalizeProduct(item.product) : item;
-                        const image   = product.imageUrl || product.image || item.imageUrl || '';
-                        const brand   = product.brand?.name || product.brand || item.brand || '';
-                        const name    = product.name || item.name || '';
+                        const product = item.product ? normalizeProduct(item.product) : null;
+                        const image   = product?.imageUrl || product?.image || item.imageUrl || item.productImageUrl || '';
+                        const brand   = product?.brand?.name || (typeof product?.brand === 'string' ? product.brand : '') || item.brand || item.productBrand || '';
+                        const name    = product?.name || item.name || item.productName || '';
                         const price   = item.unitPrice || item.price;
-                        const priceStr = price != null ? `$${Number(price).toFixed(2)}` : product.price || '';
+                        const priceStr = price != null ? `$${Number(price).toFixed(2)}` : '';
                         return (
                           <div key={i} className="order-item-preview">
                             <img src={image} alt={name} className="order-item-img" onError={e => { e.target.style.opacity = '0'; }} />

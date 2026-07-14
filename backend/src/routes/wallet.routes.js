@@ -5,6 +5,7 @@ const ctrl = require('../controllers/wallet.controller');
 const router = Router();
 
 router.get('/',               requireAuth, ctrl.getWallet);
+router.get('/balance',        requireAuth, ctrl.getWallet);
 router.get('/transactions',   requireAuth, ctrl.listTransactions);
 router.get('/deposits',       requireAuth, ctrl.listDeposits);
 router.get('/deposits/:id',         requireAuth, ctrl.getDeposit);

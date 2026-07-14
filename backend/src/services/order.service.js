@@ -170,7 +170,7 @@ async function getUserOrders(userId, { page = 1, limit = 20, status } = {}) {
     prisma.order.count({ where }),
     prisma.order.findMany({
       where,
-      include:  { items: true },
+      include:  { items: { include: { product: { include: { brand: true } } } } },
       orderBy:  { placedAt: 'desc' },
       skip:     (p - 1) * l,
       take:     l,
