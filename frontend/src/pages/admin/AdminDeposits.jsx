@@ -4,6 +4,28 @@ import StatusBadge from '../../components/admin/StatusBadge';
 import Pagination from '../../components/admin/Pagination';
 import ConfirmModal from '../../components/admin/ConfirmModal';
 
+function IconBolt({ size = 13 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5, flexShrink: 0 }}>
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+  );
+}
+function IconUser({ size = 13 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5, flexShrink: 0 }}>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+    </svg>
+  );
+}
+function IconKey({ size = 13 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5, flexShrink: 0 }}>
+      <circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3"/>
+    </svg>
+  );
+}
+
 const CRYPTO_COLORS = {
   BTC:  { bg: 'rgba(247,147,26,.15)',  color: '#f7931a' },
   ETH:  { bg: 'rgba(98,126,234,.15)',  color: '#627eea' },
@@ -56,6 +78,10 @@ export default function AdminDeposits() {
   // View address modal
   const [addrModal, setAddrModal] = useState(null); // { address, currency }
   const [copied, setCopied]       = useState(false);
+
+  // Verify HD key modal
+  const [verifying, setVerifying]         = useState(null); // depositId being fetched
+  const [verifyResult, setVerifyResult]   = useState(null); // result object
 
   const limit = 20;
 
@@ -114,6 +140,18 @@ export default function AdminDeposits() {
     } finally { setCleanupLoading(false); }
   };
 
+  const doVerify = async (depositId) => {
+    setVerifying(depositId);
+    try {
+      const data = await adminFetch(`/admin/utxo/verify-address/${depositId}`);
+      setVerifyResult(data);
+    } catch (e) {
+      setVerifyResult({ error: e.message });
+    } finally {
+      setVerifying(null);
+    }
+  };
+
   const openConfirm = d => {
     setConfirmForm({ usdAmount: String(d.usdAmount || d.expectedUsd || ''), note: '' });
     setConfirmModal({ id: d.id, currency: d.currency });
@@ -159,7 +197,7 @@ export default function AdminDeposits() {
       {/* Process reference panel */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 220, background: 'rgba(67,160,71,.08)', border: '1px solid rgba(67,160,71,.25)', borderRadius: 10, padding: '10px 14px' }}>
-          <div style={{ fontWeight: 700, fontSize: 12, color: '#2e7d32', marginBottom: 4 }}>⚡ Auto-confirmed (BTC · LTC · DOGE · ETH)</div>
+          <div style={{ fontWeight: 700, fontSize: 12, color: '#2e7d32', marginBottom: 4, display: 'flex', alignItems: 'center' }}><IconBolt />Auto-confirmed (BTC · LTC · DOGE · ETH)</div>
           <div style={{ fontSize: 12, color: '#388e3c', lineHeight: 1.6 }}>
             A unique address is generated per deposit via BlockCypher (BTC/LTC/DOGE) or Alchemy (ETH).
             Once the transaction gets 1 on-chain confirmation, the webhook credits the customer's balance automatically.
@@ -167,7 +205,7 @@ export default function AdminDeposits() {
           </div>
         </div>
         <div style={{ flex: 1, minWidth: 220, background: 'rgba(251,140,0,.08)', border: '1px solid rgba(251,140,0,.3)', borderRadius: 10, padding: '10px 14px' }}>
-          <div style={{ fontWeight: 700, fontSize: 12, color: '#e65100', marginBottom: 4 }}>👤 Manual review required (XMR)</div>
+          <div style={{ fontWeight: 700, fontSize: 12, color: '#e65100', marginBottom: 4, display: 'flex', alignItems: 'center' }}><IconUser />Manual review required (XMR)</div>
           <div style={{ fontSize: 12, color: '#bf360c', lineHeight: 1.6 }}>
             All XMR deposits share a single address. The customer must open a support ticket with their TX Hash.
             Verify the payment in your Monero wallet, then click <strong>Confirm</strong> on the deposit row and enter the USD amount to credit.
@@ -255,6 +293,16 @@ export default function AdminDeposits() {
                             Expire
                           </button>
                         )}
+                        {['BTC', 'LTC', 'DOGE'].includes(d.currency) && (
+                          <button
+                            className="admin-btn admin-btn-secondary admin-btn-sm"
+                            title="Verify that the stored address matches the current HD seed"
+                            disabled={verifying === d.id}
+                            onClick={() => doVerify(d.id)}
+                          >
+                            {verifying === d.id ? '…' : <><IconKey />Verify</>}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -337,6 +385,78 @@ export default function AdminDeposits() {
           onConfirm={doCleanup}
           onCancel={() => setCleanupConfirm(false)}
         />
+      )}
+
+      {/* Verify HD key modal */}
+      {verifyResult && (
+        <div className="admin-modal-overlay" onClick={e => { if (e.target === e.currentTarget) setVerifyResult(null); }}>
+          <div className="admin-modal">
+            <div className="admin-modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <IconKey size={16} />HD Key Verification
+              {!verifyResult.error && (
+                <span style={{
+                  marginLeft: 6, fontSize: 12, fontWeight: 700, borderRadius: 6, padding: '2px 8px',
+                  background: verifyResult.match ? 'rgba(67,160,71,.15)' : 'rgba(229,57,53,.15)',
+                  color: verifyResult.match ? '#2e7d32' : '#c62828',
+                }}>
+                  {verifyResult.match ? '✓ MATCH' : '✗ MISMATCH'}
+                </span>
+              )}
+            </div>
+
+            {verifyResult.error ? (
+              <div style={{ background: 'rgba(229,57,53,.08)', border: '1px solid rgba(229,57,53,.25)', borderRadius: 8, padding: '10px 12px', color: '#c62828', fontSize: 13 }}>
+                {verifyResult.error}
+              </div>
+            ) : (
+              <>
+                <div style={{
+                  background: verifyResult.match ? 'rgba(67,160,71,.07)' : 'rgba(229,57,53,.07)',
+                  border: `1px solid ${verifyResult.match ? 'rgba(67,160,71,.25)' : 'rgba(229,57,53,.25)'}`,
+                  borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13,
+                  color: verifyResult.match ? '#2e7d32' : '#b71c1c', lineHeight: 1.7,
+                }}>
+                  {verifyResult.match
+                    ? 'The address stored in the database was correctly derived from the current HD seed. Sweep signing will work for this deposit.'
+                    : 'The current HD seed derives a DIFFERENT address than what is stored. The private key no longer matches — sweep signing will fail. The original seed must be restored to recover funds from this address.'}
+                </div>
+
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {[
+                    { label: 'Deposit', value: `#${verifyResult.depositId} · ${verifyResult.currency} · ${verifyResult.user?.username || '—'}` },
+                    { label: 'Stored address', value: verifyResult.storedAddress },
+                    { label: 'Derived address', value: verifyResult.derivedAddress },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#6c757d', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 3 }}>{label}</div>
+                      <div style={{
+                        fontFamily: 'monospace', fontSize: 12, background: '#f4f6f9', borderRadius: 6,
+                        padding: '6px 10px', wordBreak: 'break-all', lineHeight: 1.6,
+                        color: label === 'Derived address' && !verifyResult.match ? '#c62828' : 'inherit',
+                        border: label === 'Derived address' && !verifyResult.match ? '1px solid rgba(229,57,53,.3)' : '1px solid transparent',
+                      }}>
+                        {value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {!verifyResult.match && (
+                  <div style={{ marginTop: 14, background: 'rgba(229,57,53,.07)', border: '1px solid rgba(229,57,53,.2)', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#7f0000', lineHeight: 1.6 }}>
+                    <strong>Recovery steps:</strong><br />
+                    1. Locate the original HD seed that was active when deposit #{verifyResult.depositId} was created.<br />
+                    2. Temporarily restore it in Settings → Crypto → BTC HD Seed.<br />
+                    3. Run the sweep, then restore the current seed.
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="admin-modal-actions" style={{ marginTop: 16 }}>
+              <button className="admin-btn admin-btn-secondary" onClick={() => setVerifyResult(null)}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* View address modal */}

@@ -97,9 +97,10 @@ router.put('/giveaways/:id',           wrap(contentCtrl.updateGiveaway));
 router.delete('/giveaways/:id',        wrap(contentCtrl.deleteGiveaway));
 router.get('/giveaways/:id/entries',   wrap(contentCtrl.getGiveawayEntries));
 
-// ─── Sweeps ───────────────────────────────────────────────────────────────────
-router.post('/eth/sweep',              wrap(ethCtrl.sweepEth));
-router.post('/utxo/sweep/:currency',   wrap(utxoCtrl.sweepUtxo));
+// ─── Sweeps & diagnostics ─────────────────────────────────────────────────────
+router.post('/eth/sweep',                    wrap(ethCtrl.sweepEth));
+router.post('/utxo/sweep/:currency',         wrap(utxoCtrl.sweepUtxo));
+router.get('/utxo/verify-address/:id',       wrap(utxoCtrl.verifyAddress));
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
 router.get('/analytics', wrap(analyticsCtrl.getAnalytics));

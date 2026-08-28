@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s 'https://api.blockcypher.com/v1/btc/main/addrs/1EpGUWtFBwEj4mZR1H44oiAvbnZ9sRxqUd/balance?token=df699d0cdc764507807111a7b189b0d6')",
+      "Bash(curl -s 'https://api.blockcypher.com/v1/btc/main/hooks/fc5e215d-dbb4-455d-906d-a18a3e1e414c?token=df699d0cdc764507807111a7b189b0d6')",
+      "Bash(curl -s \"https://api.blockcypher.com/v1/btc/main?token=df699d0cdc764507807111a7b189b0d6\")",
+      "Bash(curl -s \"https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd\")",
+      "Bash(curl -s \"https://api.coincap.io/v2/assets/bitcoin\")"
+    ]
+  }
+}

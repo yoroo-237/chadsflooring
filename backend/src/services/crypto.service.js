@@ -141,4 +141,4 @@ async function deleteBlockCypherForwarding(currency, hookId) {
   }
 }
 
-module.exports = { generateDepositAddress, deleteBlockCypherForwarding };
+module.exports = { generateDepositAddress, deleteBlockCypherForwarding, deriveUtxoAddress };

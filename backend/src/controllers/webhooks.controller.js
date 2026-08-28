@@ -10,14 +10,27 @@ const COINGECKO_ID = {
   ETH:  'ethereum',
 };
 
+const COINCAP_ID = { bitcoin: 'bitcoin', litecoin: 'litecoin', dogecoin: 'dogecoin', ethereum: 'ethereum' };
+
 async function getCoinUsdPrice(coinId) {
+  // Primary: CoinGecko
   try {
-    const res  = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`);
+    const res  = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`, { signal: AbortSignal.timeout(6000) });
     const data = await res.json();
-    return data[coinId]?.usd || null;
-  } catch {
-    return null;
-  }
+    const price = data[coinId]?.usd;
+    if (price) return price;
+  } catch { /* fall through to backup */ }
+
+  // Fallback: CoinCap (no API key required)
+  try {
+    const capId = COINCAP_ID[coinId] || coinId;
+    const res  = await fetch(`https://api.coincap.io/v2/assets/${capId}`, { signal: AbortSignal.timeout(6000) });
+    const data = await res.json();
+    const price = parseFloat(data?.data?.priceUsd);
+    if (price > 0) return price;
+  } catch { /* both failed */ }
+
+  return null;
 }
 
 // POST /api/webhooks/blockcypher
@@ -47,7 +60,19 @@ async function blockcypher(req, res) {
       if (satoshis <= 0) continue;
 
       const price = await getCoinUsdPrice(COINGECKO_ID[deposit.currency]);
-      if (!price) continue;
+
+      if (!price) {
+        // Price APIs unavailable — record the received amount and flag for manual review.
+        await prisma.deposit.update({
+          where: { id: deposit.id },
+          data: {
+            amountReceived: satoshis / 1e8,
+            status: 'partial',
+          },
+        });
+        console.error(`[webhook/blockcypher] Price unavailable for ${deposit.currency} — deposit #${deposit.id} flagged as partial (${satoshis} sats received). Manual confirmation required.`);
+        continue;
+      }
 
       const usdAmount = parseFloat(((satoshis / 1e8) * price).toFixed(2));
       await confirmDepositManually(deposit.id, usdAmount, null, hash || null);

@@ -2,6 +2,7 @@ const { HDNodeWallet } = require('ethers');
 const axios  = require('axios');
 const prisma = require('../../db');
 const { success, error } = require('../../utils/apiResponse');
+const { deriveUtxoAddress } = require('../../services/crypto.service');
 
 // Build a canonical DER-encoded Bitcoin signature.
 // BlockCypher validates signatures as raw DER (sig[1] == sig.size()-2) and appends
@@ -130,4 +131,32 @@ async function sweepUtxo(req, res, next) {
   } catch (e) { next(e); }
 }
 
-module.exports = { sweepUtxo };
+async function verifyAddress(req, res, next) {
+  try {
+    const depositId = parseInt(req.params.id);
+    if (isNaN(depositId)) return error(res, 'Invalid deposit ID.', 422);
+
+    const deposit = await prisma.deposit.findUnique({
+      where: { id: depositId },
+      include: { user: { select: { id: true, username: true } } },
+    });
+    if (!deposit) return error(res, 'Deposit not found.', 404);
+    if (!['BTC', 'LTC', 'DOGE'].includes(deposit.currency)) {
+      return error(res, 'Address verification only applies to BTC / LTC / DOGE deposits.', 422);
+    }
+
+    const derivedAddress = await deriveUtxoAddress(deposit.currency, depositId);
+    const match = deposit.address === derivedAddress;
+
+    return success(res, {
+      depositId,
+      currency:        deposit.currency,
+      storedAddress:   deposit.address,
+      derivedAddress,
+      match,
+      user:            deposit.user,
+    });
+  } catch (e) { next(e); }
+}
+
+module.exports = { sweepUtxo, verifyAddress };

@@ -108,7 +108,11 @@ async function createDeposit(userId, currency) {
 async function confirmDepositManually(depositId, usdAmount, adminId, txHash = null) {
   const deposit = await prisma.deposit.findUnique({ where: { id: depositId } });
   if (!deposit) throw Object.assign(new Error('Deposit not found.'), { status: 404 });
-  if (!['awaiting', 'partial'].includes(deposit.status)) {
+
+  const allowedStatuses = adminId
+    ? ['awaiting', 'partial', 'expired']  // admins can recover expired deposits
+    : ['awaiting', 'partial'];
+  if (!allowedStatuses.includes(deposit.status)) {
     throw Object.assign(new Error('Deposit cannot be confirmed.'), { status: 422 });
   }
 
