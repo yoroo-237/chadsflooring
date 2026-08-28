@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
 const BRAND_URL = (slug) => `https://chadsflooring.bz/brand/${slug || ''}`;
-const SHIPPING = 16.99;
 
 function HeartIcon({ filled }) {
   return (
@@ -35,7 +34,7 @@ const unit = (p) => parseFloat(String(p.price).replace(/[$P,]/g, '')) || 0;
 export default function CartPage() {
   const {
     cartItems, addToCart, removeFromCart, clearCart,
-    products = [], wishedIds, toggleWish, balance,
+    products = [], wishedIds, toggleWish, balance, settings,
   } = useApp();
   const navigate = useNavigate();
   const [tab, setTab] = useState('cart');
@@ -57,8 +56,12 @@ export default function CartPage() {
 
   const stashItems = products.filter(p => wishedIds.has(p.id));
 
+  const shippingCost      = Number(settings?.shipping_cost            || 16.99);
+  const freeThreshold     = Number(settings?.shipping_free_threshold  || 75);
   const subtotal = cartItems.reduce((s, it) => s + unit(it), 0);
-  const shipping = cartItems.length ? SHIPPING : 0;
+  const shipping = cartItems.length
+    ? (freeThreshold > 0 && subtotal >= freeThreshold ? 0 : shippingCost)
+    : 0;
   const grandTotal = subtotal + shipping;
   const credits = balance;
   const creditsRemaining = credits - grandTotal;

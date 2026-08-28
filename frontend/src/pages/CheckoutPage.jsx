@@ -32,8 +32,8 @@ export default function CheckoutPage() {
   const [placed, setPlaced]   = useState(null);
   const [serverErr, setServerErr] = useState('');
 
-  const shippingCost = Number(settings?.shipping_cost || 0);
-  const freeThreshold = Number(settings?.shipping_free_threshold || 0);
+  const shippingCost  = Number(settings?.shipping_cost           || 16.99);
+  const freeThreshold = Number(settings?.shipping_free_threshold || 75);
 
   const subtotal = cartItems.reduce((sum, item) => {
     return sum + (parseFloat(String(item.price).replace(/[$P]/g, '')) || 0);

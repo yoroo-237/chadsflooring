@@ -64,9 +64,13 @@ router.get('/support/tickets',                    wrap(supportCtrl.listTickets))
 router.get('/support/tickets/:id',                wrap(supportCtrl.getTicket));
 router.get('/support/:id',                        wrap(supportCtrl.getTicket));
 router.post('/support/tickets/:id/messages',      wrap(supportCtrl.createMessage));
+router.post('/support/:id/messages',              wrap(supportCtrl.createMessage));
 router.patch('/support/tickets/:id/status',       wrap(supportCtrl.updateTicketStatus));
+router.patch('/support/:id/status',               wrap(supportCtrl.updateTicketStatus));
 router.patch('/support/tickets/:id/assign',       wrap(supportCtrl.assignTicket));
+router.patch('/support/:id/assign',               wrap(supportCtrl.assignTicket));
 router.patch('/support/tickets/:id/priority',     wrap(supportCtrl.updatePriority));
+router.patch('/support/:id/priority',             wrap(supportCtrl.updatePriority));
 
 // ─── Reviews ─────────────────────────────────────────────────────────────────
 router.get('/reviews',                wrap(reviewsCtrl.listReviews));
