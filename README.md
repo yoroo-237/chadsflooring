@@ -1,4 +1,4 @@
-# Shop React App
+# Shop React App ok
 
 Clone fidèle de la boutique chadsflooring.bz en React.js.
 
