@@ -10,15 +10,6 @@ const placeOrderSchema = z.object({
       })
     )
     .min(1, 'Cart is empty.'),
-  paymentMethod: z.enum(['XMR', 'BTC', 'ETH']),
-  shipping: z.object({
-    name:    z.string().min(1).max(255),
-    email:   z.string().email(),
-    address: z.string().min(1).max(500),
-    city:    z.string().min(1).max(255),
-    postal:  z.string().min(1).max(20),
-    country: z.enum(['US', 'CA', 'UK', 'AU', 'DE', 'FR', 'Other']),
-  }),
 });
 
 module.exports = { placeOrderSchema };

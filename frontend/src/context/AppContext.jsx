@@ -103,7 +103,7 @@ export function AppProvider({ children }) {
     showToast(`${product.name} added to cart`, 'success');
   }, [showToast]);
 
-  const placeOrder = useCallback(async (formData) => {
+  const placeOrder = useCallback(async () => {
     const grouped = cartItems.reduce((acc, item) => {
       const id = item.id;
       if (!acc[id]) acc[id] = { productId: id, quantity: 0 };
@@ -111,18 +111,7 @@ export function AppProvider({ children }) {
       return acc;
     }, {});
     const items = Object.values(grouped);
-    const body = {
-      items,
-      paymentMethod: formData?.payment || 'XMR',
-      shipping: {
-        name:    formData?.name    || '',
-        email:   formData?.email   || '',
-        address: formData?.address || '',
-        city:    formData?.city    || '',
-        postal:  formData?.postal  || '',
-        country: formData?.country || 'US',
-      },
-    };
+    const body = { items };
     const data = await api.post('/orders', body);
     const order = data.order || data;
     setOrders(prev => [order, ...prev]);

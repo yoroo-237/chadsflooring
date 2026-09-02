@@ -3,17 +3,7 @@ const { calculateShipping } = require('./shipping.service');
 const { formatOrderId, formatTxnId } = require('../utils/formatters');
 const { parsePaginationParams, buildPagination } = require('../utils/pagination');
 
-const ALLOWED_PAYMENT_METHODS = ['XMR', 'BTC', 'ETH'];
-const ALLOWED_COUNTRIES = ['US', 'CA', 'UK', 'AU', 'DE', 'FR', 'Other'];
-
-async function placeOrder(userId, { items, paymentMethod, shipping }) {
-  if (!ALLOWED_PAYMENT_METHODS.includes(paymentMethod)) {
-    throw Object.assign(new Error('Invalid payment method.'), { status: 422 });
-  }
-  if (!ALLOWED_COUNTRIES.includes(shipping.country)) {
-    throw Object.assign(new Error('Shipping country not available.'), { status: 422 });
-  }
-
+async function placeOrder(userId, { items }) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || !user.isActive) {
     throw Object.assign(new Error('User not found.'), { status: 404 });
@@ -83,17 +73,10 @@ async function placeOrder(userId, { items, paymentMethod, shipping }) {
         frontendId:  orderFrontendId,
         userId,
         status:      'processing',
-        paymentMethod,
         subtotal:    usdSubtotal,
         shippingCost,
         totalAmount: total,
         pointsEarned,
-        shipName:    shipping.name,
-        shipEmail:   shipping.email,
-        shipAddress: shipping.address,
-        shipCity:    shipping.city,
-        shipPostal:  shipping.postal,
-        shipCountry: shipping.country,
       },
     });
 
