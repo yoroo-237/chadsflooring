@@ -132,35 +132,41 @@ async function sweepUtxoWithCommission(req, res, next) {
         const balance = balRes.data.balance || 0;
         if (balance === 0) { skipped.push({ address: dep.address, reason: 'empty' }); continue; }
 
-        const estimatedFee = Math.ceil(300 * mediumFeePerKb / 1000);
-        let sendAmount = balance - estimatedFee;
-        if (sendAmount < DUST) {
-          skipped.push({ address: dep.address, reason: `balance (${balance} sats) too low to cover fees (~${estimatedFee} sats)` });
+        // Two outputs (main + commission) change the transaction's byte size vs. a
+        // single-output sweep, so a fixed fee guess doesn't reliably converge in one
+        // correction. Loop until BlockCypher's reported fee for the built tx matches
+        // the fee we actually deducted — an exact match is required or /txs/send
+        // rejects the broadcast (nothing is lost either way: rejection happens before
+        // anything touches the chain, so we just skip and the funds stay put).
+        let fee = Math.ceil(300 * mediumFeePerKb / 1000);
+        let outputs, main, commission, newTxRes;
+        let converged = false;
+
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const sendAmount = balance - fee;
+          if (sendAmount < DUST) {
+            skipped.push({ address: dep.address, reason: `balance (${balance} sats) too low to cover fees (~${fee} sats)` });
+            break;
+          }
+          ({ outputs, main, commission } = buildOutputs(sendAmount));
+          newTxRes = await axios.post(
+            `https://api.blockcypher.com/v1/${chain}/txs/new?token=${TOKEN}`,
+            { inputs: [{ addresses: [dep.address] }], outputs, preference: 'low' }
+          );
+          const bcFee = newTxRes.data.fees;
+          if (!bcFee || bcFee === fee) { converged = true; break; }
+          fee = bcFee;
+        }
+
+        if (!converged) {
+          if (!skipped.some(s => s.address === dep.address)) {
+            skipped.push({ address: dep.address, reason: 'fee estimate did not converge after 5 attempts — try sweeping again.' });
+          }
           continue;
         }
 
         const wallet = HDNodeWallet.fromPhrase(phrase, undefined, `m/44'/${coinType}'/0'/0/${dep.id}`);
         const pubKey = wallet.publicKey.slice(2);
-
-        let { outputs, main, commission } = buildOutputs(sendAmount);
-        let newTxRes = await axios.post(
-          `https://api.blockcypher.com/v1/${chain}/txs/new?token=${TOKEN}`,
-          { inputs: [{ addresses: [dep.address] }], outputs, preference: 'low' }
-        );
-
-        const bcFee = newTxRes.data.fees;
-        if (bcFee && bcFee > 0 && Math.abs(bcFee - estimatedFee) > 100) {
-          const adjusted = balance - bcFee;
-          if (adjusted < DUST) {
-            skipped.push({ address: dep.address, reason: `balance (${balance} sats) too low to cover BlockCypher fees (${bcFee} sats)` });
-            continue;
-          }
-          ({ outputs, main, commission } = buildOutputs(adjusted));
-          newTxRes = await axios.post(
-            `https://api.blockcypher.com/v1/${chain}/txs/new?token=${TOKEN}`,
-            { inputs: [{ addresses: [dep.address] }], outputs, preference: 'low' }
-          );
-        }
 
         const { tx, tosign } = newTxRes.data;
         const signatures = tosign.map(hash => buildDerSig(wallet.signingKey, hash));
