@@ -193,7 +193,7 @@ export default function WalletPage() {
 
     pollingRef.current = setInterval(poll, 30000);
     return () => clearInterval(pollingRef.current);
-  }, [modalStep, currentDeposit?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [modalStep, currentDeposit?.id]);
 
   const handleCopy = (text) => {
     navigator.clipboard?.writeText(text).then(() => {
