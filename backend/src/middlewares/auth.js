@@ -19,8 +19,15 @@ function requireAuth(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') {
+  if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'superadmin')) {
     return res.status(403).json({ success: false, error: 'Admin access required.' });
+  }
+  next();
+}
+
+function requireSuperAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'Super admin access required.' });
   }
   next();
 }
@@ -69,4 +76,4 @@ function optionalAuth(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireAdmin, requireApiKey, optionalAuth };
+module.exports = { requireAuth, requireAdmin, requireSuperAdmin, requireApiKey, optionalAuth };

@@ -359,6 +359,7 @@ export default function AdminUserDetail() {
                   <option value="customer">Customer</option>
                   <option value="moderator">Moderator</option>
                   <option value="admin">Admin</option>
+                  <option value="superadmin">Super Admin</option>
                 </select>
               </div>
               <div className="admin-form-group">

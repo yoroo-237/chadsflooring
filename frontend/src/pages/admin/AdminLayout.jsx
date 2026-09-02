@@ -52,6 +52,9 @@ function IconSystemStatus() {
 function IconSettings() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>;
 }
+function IconSuper() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z"/></svg>;
+}
 function IconLogout() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
 }
@@ -87,19 +90,25 @@ const NAV = [
   { to: '/mario-dashboard/settings',      icon: <IconSettings />,      label: 'Settings' },
 ];
 
-function getAdminName() {
+const SUPER_NAV = [
+  { section: 'Super Admin' },
+  { to: '/mario-dashboard/super', icon: <IconSuper />, label: 'Commission Sweep' },
+];
+
+function getAdminInfo() {
   try {
     const t = localStorage.getItem('token');
-    if (!t) return 'Admin';
+    if (!t) return { name: 'Admin', role: 'admin' };
     const p = decodeToken(t);
-    return p?.username || 'Admin';
-  } catch { return 'Admin'; }
+    return { name: p?.username || 'Admin', role: p?.role || 'admin' };
+  } catch { return { name: 'Admin', role: 'admin' }; }
 }
 
 export default function AdminLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const adminName = getAdminName();
+  const { name: adminName, role } = getAdminInfo();
+  const nav = role === 'superadmin' ? [...NAV, ...SUPER_NAV] : NAV;
 
   const logout = () => {
     localStorage.removeItem('token');
@@ -120,7 +129,7 @@ export default function AdminLayout() {
           <span>Admin Dashboard</span>
         </div>
         <nav className="admin-nav">
-          {NAV.map((item, i) => {
+          {nav.map((item, i) => {
             if (item.section) return <div key={i} className="admin-nav-section">{item.section}</div>;
             return (
               <NavLink

@@ -26,7 +26,9 @@ import LoginPage from './pages/LoginPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import { AdminRoute } from './components/admin/AdminRoute';
+import { SuperAdminRoute } from './components/admin/SuperAdminRoute';
 import AdminLayout from './pages/admin/AdminLayout';
+import AdminSuperDashboard from './pages/admin/AdminSuperDashboard';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminOrderDetail from './pages/admin/AdminOrderDetail';
@@ -76,6 +78,7 @@ export default function App() {
             <Route path="analytics" element={<AdminAnalytics />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="system-status" element={<AdminSystemStatus />} />
+            <Route path="super" element={<SuperAdminRoute><AdminSuperDashboard /></SuperAdminRoute>} />
           </Route>
 
           {/* Login — outside main layout */}

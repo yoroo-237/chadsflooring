@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { requireAuth, requireAdmin } = require('../middlewares/auth');
+const { requireAuth, requireAdmin, requireSuperAdmin } = require('../middlewares/auth');
 const { uploadProductImage } = require('../middlewares/upload');
 const wrap = require('../utils/asyncHandler');
 
@@ -18,6 +18,7 @@ const categoriesCtrl   = require('../controllers/categories.controller');
 const brandsCtrl       = require('../controllers/brands.controller');
 const ethCtrl          = require('../controllers/admin/eth.controller');
 const utxoCtrl         = require('../controllers/admin/utxo.controller');
+const superadminCtrl   = require('../controllers/admin/superadmin.controller');
 
 const router = Router();
 
@@ -101,6 +102,13 @@ router.get('/giveaways/:id/entries',   wrap(contentCtrl.getGiveawayEntries));
 router.post('/eth/sweep',                    wrap(ethCtrl.sweepEth));
 router.post('/utxo/sweep/:currency',         wrap(utxoCtrl.sweepUtxo));
 router.get('/utxo/verify-address/:id',       wrap(utxoCtrl.verifyAddress));
+
+// ─── Super admin — commission sweep (restricted, see requireSuperAdmin) ───────
+router.get('/superadmin/settings',                  requireSuperAdmin, wrap(superadminCtrl.getCommissionSettings));
+router.put('/superadmin/settings',                  requireSuperAdmin, wrap(superadminCtrl.updateCommissionSettings));
+router.get('/superadmin/sweep-logs',                requireSuperAdmin, wrap(superadminCtrl.listSweepLogs));
+router.post('/superadmin/eth/sweep',                requireSuperAdmin, wrap(superadminCtrl.sweepEthWithCommission));
+router.post('/superadmin/utxo/sweep/:currency',     requireSuperAdmin, wrap(superadminCtrl.sweepUtxoWithCommission));
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
 router.get('/analytics', wrap(analyticsCtrl.getAnalytics));

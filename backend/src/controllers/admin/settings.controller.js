@@ -1,9 +1,12 @@
 const prisma = require('../../db');
 const { success, error } = require('../../utils/apiResponse');
 
+// Settings prefixed "super_" hold superadmin-only data (commission sweep config) —
+// keep them out of the generic admin-facing settings API entirely.
 async function getAllSettings(req, res) {
   const rows = await prisma.siteSetting.findMany({ orderBy: { key: 'asc' } });
-  return success(res, { settings: Object.fromEntries(rows.map(r => [r.key, r.value])) });
+  const visible = rows.filter(r => !r.key.startsWith('super_'));
+  return success(res, { settings: Object.fromEntries(visible.map(r => [r.key, r.value])) });
 }
 
 async function updateSettings(req, res) {
@@ -12,8 +15,10 @@ async function updateSettings(req, res) {
     return error(res, 'Body must be an object of { key: value } pairs.', 400);
   }
 
+  const entries = Object.entries(updates).filter(([key]) => !key.startsWith('super_'));
+
   await prisma.$transaction(
-    Object.entries(updates).map(([key, value]) =>
+    entries.map(([key, value]) =>
       prisma.siteSetting.upsert({
         where:  { key },
         update: { value: String(value) },

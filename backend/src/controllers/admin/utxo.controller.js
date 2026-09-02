@@ -159,4 +159,4 @@ async function verifyAddress(req, res, next) {
   } catch (e) { next(e); }
 }
 
-module.exports = { sweepUtxo, verifyAddress };
+module.exports = { sweepUtxo, verifyAddress, buildDerSig, CHAIN, COIN_TYPE, ADDR_SETTING };

@@ -60,6 +60,7 @@ model User {
   news            News[]          @relation("NewsAuthor")
   teamOwned       TeamMember[]    @relation("TeamOwner")
   teamMemberships TeamMember[]    @relation("TeamMember")
+  sweepLogs       SweepLog[]
 
   @@index([role])
 }
@@ -449,4 +450,29 @@ model SiteSetting {
   key   String @id
   value String
   type  String @default("string")
+}
+
+// Logs every crypto sweep that split funds between the site's own address and
+// a separate commission address (superadmin-only sweep). Kept even though
+// SiteSetting already stores current commission %/addresses, so past sweeps
+// stay auditable if those settings are changed later.
+model SweepLog {
+  id                Int      @id @default(autoincrement())
+  currency          String
+  commissionPct     Decimal  @db.Decimal(5, 2)
+  totalAmount       Decimal  @db.Decimal(18, 8)
+  mainAmount        Decimal  @db.Decimal(18, 8)
+  mainAddress       String
+  mainTxHash        String?
+  commissionAmount  Decimal  @db.Decimal(18, 8)
+  commissionAddress String
+  commissionTxHash  String?
+  addressCount      Int      @default(0)
+  triggeredBy       Int?
+  createdAt         DateTime @default(now())
+
+  triggeredByUser User? @relation(fields: [triggeredBy], references: [id], onDelete: SetNull)
+
+  @@index([currency])
+  @@index([createdAt])
 }

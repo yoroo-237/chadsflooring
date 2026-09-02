@@ -20,7 +20,8 @@ function LoginForm({ onSuccess }) {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Login failed.');
-      if (json.data.user?.role !== 'admin') throw new Error('Admin access required.');
+      const role = json.data.user?.role;
+      if (role !== 'admin' && role !== 'superadmin') throw new Error('Admin access required.');
       localStorage.setItem('token', json.data.token);
       if (json.data.refreshToken) localStorage.setItem('refreshToken', json.data.refreshToken);
       onSuccess();
@@ -67,7 +68,7 @@ export function AdminRoute({ children }) {
       setStatus('login');
       return;
     }
-    if (p.role !== 'admin') { setStatus('forbidden'); return; }
+    if (p.role !== 'admin' && p.role !== 'superadmin') { setStatus('forbidden'); return; }
     setStatus('ok');
   }, []);
 
