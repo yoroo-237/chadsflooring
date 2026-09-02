@@ -59,6 +59,34 @@ async function listOrders(req, res, next) {
   } catch (e) { next(e); }
 }
 
+async function getOrder(req, res, next) {
+  try {
+    const id = parseInt(req.params.id);
+    const order = await prisma.order.findUnique({
+      where:   { id },
+      include: {
+        user:  { select: { id: true, username: true, email: true } },
+        items: true,
+      },
+    });
+    if (!order) return error(res, 'Order not found.', 404);
+
+    return success(res, {
+      order: {
+        ...order,
+        totalAmount:  parseFloat(order.totalAmount),
+        subtotal:     parseFloat(order.subtotal),
+        shippingCost: parseFloat(order.shippingCost),
+        items: order.items.map(i => ({
+          ...i,
+          unitPrice: parseFloat(i.unitPrice),
+          lineTotal: parseFloat(i.lineTotal),
+        })),
+      },
+    });
+  } catch (e) { next(e); }
+}
+
 async function updateOrderStatus(req, res, next) {
   try {
     const id = parseInt(req.params.id);
@@ -102,4 +130,4 @@ async function updateOrderTracking(req, res, next) {
   } catch (e) { next(e); }
 }
 
-module.exports = { listOrders, updateOrderStatus, updateOrderTracking };
+module.exports = { listOrders, getOrder, updateOrderStatus, updateOrderTracking };

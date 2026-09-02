@@ -77,12 +77,12 @@ export default function AdminOrders() {
                 ? <tr><td colSpan={7} className="admin-table-empty">No orders found</td></tr>
                 : orders.map(o => (
                   <tr key={o.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/mario-dashboard/orders/${o.id}`, { state: { order: o } })}>
-                    <td style={{ fontWeight: 700 }}>#{o.orderNumber}</td>
+                    <td style={{ fontWeight: 700 }}>#{o.frontendId || o.id}</td>
                     <td>{o.user?.username || o.user?.email || '—'}</td>
                     <td>{o._count?.items ?? o.itemCount ?? '—'}</td>
-                    <td>{fmt(o.total)}</td>
+                    <td>{fmt(o.totalAmount)}</td>
                     <td><StatusBadge status={o.status} /></td>
-                    <td style={{ color: '#6c757d', fontSize: 12 }}>{new Date(o.createdAt).toLocaleDateString()}</td>
+                    <td style={{ color: '#6c757d', fontSize: 12 }}>{new Date(o.placedAt).toLocaleDateString()}</td>
                     <td>
                       <button className="admin-btn admin-btn-secondary admin-btn-sm"
                         onClick={e => { e.stopPropagation(); navigate(`/mario-dashboard/orders/${o.id}`, { state: { order: o } }); }}>

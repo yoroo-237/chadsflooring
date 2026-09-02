@@ -38,6 +38,7 @@ router.post('/users/:id/wallet/adjust',  wrap(usersCtrl.adjustWallet));
 
 // ─── Orders ──────────────────────────────────────────────────────────────────
 router.get('/orders',                wrap(ordersCtrl.listOrders));
+router.get('/orders/:id',            wrap(ordersCtrl.getOrder));
 router.patch('/orders/:id/status',   wrap(ordersCtrl.updateOrderStatus));
 router.patch('/orders/:id/tracking', wrap(ordersCtrl.updateOrderTracking));
 

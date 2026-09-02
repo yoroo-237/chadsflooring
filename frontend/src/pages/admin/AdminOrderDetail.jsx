@@ -20,14 +20,9 @@ export default function AdminOrderDetail() {
   const [err, setErr]           = useState(null);
 
   useEffect(() => {
-    if (!order) {
-      adminFetch(`/admin/orders/${id}`)
-        .then(d => { setOrder(d.order || d); setLoading(false); })
-        .catch(e => { setErr(e.message); setLoading(false); });
-    } else {
-      setNewStatus(order.status);
-      setTracking(order.trackingNumber || '');
-    }
+    adminFetch(`/admin/orders/${id}`)
+      .then(d => { setOrder(d.order || d); setLoading(false); })
+      .catch(e => { setErr(e.message); setLoading(false); });
   }, [id]);
 
   useEffect(() => {
@@ -54,7 +49,7 @@ export default function AdminOrderDetail() {
   if (loading) return <div style={{ padding: 40, color: '#6c757d' }}>Loading…</div>;
   if (!order)  return <div style={{ padding: 40, color: '#e53935' }}>{err || 'Order not found'}</div>;
 
-  const items = order.items || order.OrderItem || [];
+  const items = order.items || [];
 
   return (
     <div>
@@ -63,8 +58,8 @@ export default function AdminOrderDetail() {
           <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: 8 }}>
             ← Back
           </button>
-          <h1 className="admin-page-title">Order #{order.orderNumber}</h1>
-          <p className="admin-page-subtitle">{new Date(order.createdAt).toLocaleString()}</p>
+          <h1 className="admin-page-title">Order #{order.frontendId || order.id}</h1>
+          <p className="admin-page-subtitle">{new Date(order.placedAt).toLocaleString()}</p>
         </div>
         <StatusBadge status={order.status} />
       </div>
@@ -112,37 +107,22 @@ export default function AdminOrderDetail() {
                 ? <tr><td colSpan={5} className="admin-table-empty">No items</td></tr>
                 : items.map((item, i) => (
                   <tr key={i}>
-                    <td>{item.productName || item.product?.name || '—'}</td>
+                    <td>{item.productName || '—'}</td>
                     <td style={{ color: '#6c757d' }}>{item.optionLabel || '—'}</td>
                     <td>{item.quantity}</td>
                     <td>{fmt(item.unitPrice)}</td>
-                    <td>{fmt(item.quantity * item.unitPrice)}</td>
+                    <td>{fmt(item.lineTotal)}</td>
                   </tr>
                 ))
               }
               <tr>
                 <td colSpan={4} style={{ textAlign: 'right', fontWeight: 700 }}>Total</td>
-                <td style={{ fontWeight: 700 }}>{fmt(order.total)}</td>
+                <td style={{ fontWeight: 700 }}>{fmt(order.totalAmount)}</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
-
-      {/* Shipping */}
-      {order.shippingAddress && (
-        <div className="admin-card">
-          <div className="admin-card-title">Shipping Address</div>
-          <div className="admin-info-list">
-            {Object.entries(order.shippingAddress).map(([k, v]) => (
-              <div className="admin-info-row" key={k}>
-                <span className="admin-info-label">{k}</span>
-                <span className="admin-info-value">{String(v)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {confirm && (
         <ConfirmModal
