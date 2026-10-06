@@ -101,7 +101,7 @@ async function sweepUtxoWithCommission(req, res, next) {
     const mediumFeePerKb = chainInfo.data.medium_fee_per_kb || chainInfo.data.low_fee_per_kb || 20000;
 
     const deposits = await prisma.deposit.findMany({
-      where:  { currency, status: { in: ['confirmed', 'awaiting', 'partial'] } },
+      where:  { currency, status: { in: ['confirmed', 'awaiting', 'partial', 'expired'] } },
       select: { id: true, address: true },
     });
 
