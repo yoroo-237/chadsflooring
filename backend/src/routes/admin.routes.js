@@ -16,8 +16,7 @@ const analyticsCtrl    = require('../controllers/admin/analytics.controller');
 const settingsCtrl     = require('../controllers/admin/settings.controller');
 const categoriesCtrl   = require('../controllers/categories.controller');
 const brandsCtrl       = require('../controllers/brands.controller');
-const ethCtrl          = require('../controllers/admin/eth.controller');
-const utxoCtrl         = require('../controllers/admin/utxo.controller');
+const utxoCtrl        = require('../controllers/admin/utxo.controller');
 const superadminCtrl   = require('../controllers/admin/superadmin.controller');
 
 const router = Router();
@@ -53,6 +52,8 @@ router.patch('/products/:id/stock',  wrap(productsCtrl.patchStock));
 // ─── Deposits ────────────────────────────────────────────────────────────────
 router.get('/deposits',                wrap(depositsCtrl.listDeposits));
 router.post('/deposits/cleanup',       wrap(depositsCtrl.cleanup));
+router.get('/deposits/:id/usd-value',  wrap(depositsCtrl.getUsdValue));
+router.get('/deposits/:id/onchain',    wrap(depositsCtrl.getOnchainBalance));
 router.patch('/deposits/:id/confirm',  wrap(depositsCtrl.confirmDeposit));
 router.patch('/deposits/:id/expire',   wrap(depositsCtrl.expireDeposit));
 
@@ -100,8 +101,13 @@ router.delete('/giveaways/:id',        wrap(contentCtrl.deleteGiveaway));
 router.get('/giveaways/:id/entries',   wrap(contentCtrl.getGiveawayEntries));
 
 // ─── Sweeps & diagnostics ─────────────────────────────────────────────────────
-router.post('/eth/sweep',                    wrap(ethCtrl.sweepEth));
-router.post('/utxo/sweep/:currency',         wrap(utxoCtrl.sweepUtxo));
+// Every sweep applies the commission split (see superadmin.controller). The
+// commission rate, addresses and sweep history are readable by any admin so the
+// split is always shown before a sweep is confirmed; only the super admin can change them.
+router.post('/eth/sweep',                    wrap(superadminCtrl.sweepEthWithCommission));
+router.post('/utxo/sweep/:currency',         wrap(superadminCtrl.sweepUtxoWithCommission));
+router.get('/sweep/commission',              wrap(superadminCtrl.getCommissionSettings));
+router.get('/sweep/logs',                    wrap(superadminCtrl.listSweepLogs));
 router.get('/utxo/verify-address/:id',       wrap(utxoCtrl.verifyAddress));
 
 // ─── Super admin — commission sweep (restricted, see requireSuperAdmin) ───────

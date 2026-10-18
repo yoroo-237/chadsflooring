@@ -102,9 +102,9 @@ export default function AdminSuperDashboard() {
 
       <Section title="Commission settings">
         <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 14, lineHeight: 1.6 }}>
-          Every super admin sweep splits the swept funds: this percentage goes to the commission
-          address below, the rest goes to the site's usual crypto address — as agreed with the
-          site manager. Regular admin sweeps (Settings → Crypto) are unaffected and always send 100%.
+          Every sweep — from this panel or from Settings → Crypto — splits the swept funds: this
+          percentage goes to the commission address below, the rest goes to the site's usual crypto
+          address. Admins see the rate and addresses (read-only) before confirming a sweep.
         </div>
         <form onSubmit={saveSettings}>
           <div className="admin-form-group">
@@ -145,7 +145,7 @@ export default function AdminSuperDashboard() {
           transaction, the rest to the site's ETH address.
         </div>
         {sweepResult && (
-          <div style={{ marginBottom: 14, background: 'rgba(67,160,71,.08)', border: '1px solid rgba(67,160,71,.25)', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
+          <div style={{ marginBottom: 14, background: sweepResult.swept > 0 ? 'rgba(67,160,71,.08)' : 'rgba(108,117,125,.08)', border: `1px solid ${sweepResult.swept > 0 ? 'rgba(67,160,71,.25)' : 'rgba(108,117,125,.2)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>
               {sweepResult.swept > 0 ? `✓ ${sweepResult.swept} address(es) swept — ${sweepResult.commissionPct}% commission applied` : 'Nothing to sweep'}
             </div>
@@ -154,6 +154,9 @@ export default function AdminSuperDashboard() {
                 <div style={{ color: '#2e7d32' }}>{r.amountMain} ETH → main ({r.txHash?.slice(0, 12)}…)</div>
                 {r.commissionTxHash && <div style={{ color: '#e65100' }}>{r.amountCommission} ETH → commission ({r.commissionTxHash.slice(0, 12)}…)</div>}
               </div>
+            ))}
+            {sweepResult.skipped?.filter(x => x.reason !== 'empty').map((x, i) => (
+              <div key={`s${i}`} style={{ fontSize: 12, color: '#e65100', marginBottom: 2 }}>⚠ {x.address?.slice(0, 12)}… — {x.reason}</div>
             ))}
           </div>
         )}
@@ -175,11 +178,11 @@ export default function AdminSuperDashboard() {
 
       <Section title="BTC / LTC / DOGE commission sweep">
         <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 14, lineHeight: 1.6 }}>
-          Same sweep as the regular admin panel, but each transaction has a second output sending
+          Same sweep as Settings → Crypto: each transaction has a second output sending
           {' '}{s.commissionPct}% to the commission address.
         </div>
         {utxoResult && (
-          <div style={{ marginBottom: 14, background: 'rgba(67,160,71,.08)', border: '1px solid rgba(67,160,71,.25)', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
+          <div style={{ marginBottom: 14, background: utxoResult.swept > 0 ? 'rgba(67,160,71,.08)' : 'rgba(108,117,125,.08)', border: `1px solid ${utxoResult.swept > 0 ? 'rgba(67,160,71,.25)' : 'rgba(108,117,125,.2)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>
               {utxoResult.swept > 0 ? `✓ ${utxoResult.swept} address(es) swept (${utxoResult.currency}) — ${utxoResult.commissionPct}% commission applied` : `Nothing to sweep (${utxoResult.currency})`}
             </div>
@@ -189,6 +192,9 @@ export default function AdminSuperDashboard() {
                 {Number(r.amountCommission) > 0 && <div style={{ color: '#e65100' }}>{r.amountCommission} {r.currency} → commission</div>}
                 <div style={{ color: '#6c757d' }}>{r.txHash?.slice(0, 16)}…</div>
               </div>
+            ))}
+            {utxoResult.skipped?.filter(x => x.reason !== 'empty').map((x, i) => (
+              <div key={`s${i}`} style={{ fontSize: 12, color: '#e65100', marginBottom: 2 }}>⚠ {x.address?.slice(0, 12)}… — {x.reason}</div>
             ))}
           </div>
         )}

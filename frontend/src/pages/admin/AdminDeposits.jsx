@@ -49,8 +49,44 @@ function truncateAddr(addr) {
 }
 
 const fmt    = n => `$${Number(n || 0).toFixed(2)}`;
-const fmtC   = n => Number(n || 0).toFixed(8).replace(/\.?0+$/, '');
-const shortId = id => String(id || '').slice(0, 8);
+const fmtC   = n => (n == null ? '—' : Number(n).toFixed(8).replace(/\.?0+$/, '') || '0');
+const fmtUsd = n => (n == null ? '—' : fmt(n));
+
+function InfoRows({ rows }) {
+  return (
+    <div className="admin-info-list" style={{ marginBottom: 14 }}>
+      {rows.filter(Boolean).map(([label, value, color]) => (
+        <div key={label} className="admin-info-row">
+          <span className="admin-info-label">{label}</span>
+          <span className="admin-info-value" style={color ? { color } : undefined}>{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InspectModal({ title, modal, onClose, children }) {
+  return (
+    <div className="admin-modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="admin-modal">
+        <div className="admin-modal-title" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <CurrencyBadge currency={modal.deposit.currency} /> {title}
+          <span style={{ fontSize: 12, color: '#6c757d', fontWeight: 600 }}>#{modal.deposit.id} · {modal.deposit.user?.username || '—'}</span>
+        </div>
+        {modal.loading && <div style={{ color: '#6c757d', fontSize: 13, padding: '12px 0' }}>Loading…</div>}
+        {modal.error && (
+          <div style={{ background: 'rgba(229,57,53,.08)', border: '1px solid rgba(229,57,53,.25)', borderRadius: 8, padding: '10px 12px', color: '#c62828', fontSize: 13, marginBottom: 14 }}>
+            {modal.error}
+          </div>
+        )}
+        {modal.data && children(modal.data)}
+        <div className="admin-modal-actions">
+          <button className="admin-btn admin-btn-secondary" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminDeposits() {
   const [deposits, setDeposits]     = useState([]);
@@ -62,9 +98,14 @@ export default function AdminDeposits() {
   const [err, setErr]               = useState(null);
 
   // Confirm modal
-  const [confirmModal, setConfirmModal] = useState(null); // { id }
+  const [confirmModal, setConfirmModal] = useState(null); // { id, currency }
   const [confirmForm, setConfirmForm]   = useState({ usdAmount: '', note: '' });
   const [confirming, setConfirming]     = useState(false);
+  const [confirmErr, setConfirmErr]     = useState(null);
+
+  // USD value / on-chain wallet modals: { deposit, loading, data, error }
+  const [usdModal, setUsdModal]     = useState(null);
+  const [chainModal, setChainModal] = useState(null);
 
   // Expire confirm
   const [expireId, setExpireId]   = useState(null);
@@ -101,7 +142,7 @@ export default function AdminDeposits() {
   useEffect(() => { load(); }, [load]);
 
   const doConfirm = async e => {
-    e.preventDefault(); setConfirming(true); setErr(null);
+    e.preventDefault(); setConfirming(true); setConfirmErr(null);
     try {
       await adminFetch(`/admin/deposits/${confirmModal.id}/confirm`, {
         method: 'PATCH',
@@ -109,8 +150,19 @@ export default function AdminDeposits() {
       });
       setConfirmModal(null);
       load();
-    } catch (e) { setErr(e.message); }
+    } catch (e) { setConfirmErr(e.message); }
     finally { setConfirming(false); }
+  };
+
+  const openInspect = async (d, kind) => {
+    const setModal = kind === 'usd' ? setUsdModal : setChainModal;
+    setModal({ deposit: d, loading: true, data: null, error: null });
+    try {
+      const data = await adminFetch(`/admin/deposits/${d.id}/${kind === 'usd' ? 'usd-value' : 'onchain'}`);
+      setModal({ deposit: d, loading: false, data, error: null });
+    } catch (e) {
+      setModal({ deposit: d, loading: false, data: null, error: e.message });
+    }
   };
 
   const doExpire = async () => {
@@ -123,8 +175,17 @@ export default function AdminDeposits() {
     finally { setExpiring(false); }
   };
 
-  const copyAddr = () => {
-    navigator.clipboard?.writeText(addrModal?.address);
+  const copyAddr = async () => {
+    const text = addrModal?.address || '';
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard API unavailable (non-HTTPS or denied): fall back to a hidden textarea
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -153,7 +214,8 @@ export default function AdminDeposits() {
   };
 
   const openConfirm = d => {
-    setConfirmForm({ usdAmount: String(d.usdAmount || d.expectedUsd || ''), note: '' });
+    setConfirmForm({ usdAmount: '', note: '' });
+    setConfirmErr(null);
     setConfirmModal({ id: d.id, currency: d.currency });
   };
 
@@ -241,7 +303,7 @@ export default function AdminDeposits() {
                 ? <tr><td colSpan={11} className="admin-table-empty">No deposits found</td></tr>
                 : deposits.map(d => (
                   <tr key={d.id}>
-                    <td style={{ fontFamily: 'monospace', fontSize: 12, color: '#6c757d' }}>{shortId(d.id)}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 12, color: '#6c757d' }}>#{d.id}</td>
                     <td>
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{d.user?.username || '—'}</div>
                     </td>
@@ -256,11 +318,11 @@ export default function AdminDeposits() {
                         {truncateAddr(d.address)}
                       </button>
                     </td>
-                    <td style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                      {fmtC(d.expectedAmount)} {d.currency}
+                    <td style={{ fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      {d.amountExpected != null ? `${fmtC(d.amountExpected)} ${d.currency}` : '—'}
                     </td>
-                    <td style={{ fontFamily: 'monospace', fontSize: 12, color: d.receivedAmount > 0 ? '#43a047' : '#6c757d' }}>
-                      {fmtC(d.receivedAmount)} {d.currency}
+                    <td style={{ fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap', color: d.amountReceived > 0 ? '#43a047' : '#6c757d' }}>
+                      {fmtC(d.amountReceived)} {d.currency}
                     </td>
                     <td style={{ fontWeight: 700, color: d.usdCredited > 0 ? '#43a047' : '#6c757d' }}>
                       {d.usdCredited > 0 ? fmt(d.usdCredited) : '—'}
@@ -278,8 +340,8 @@ export default function AdminDeposits() {
                     <td style={{ fontSize: 12, color: '#6c757d' }}>
                       {d.expiresAt ? new Date(d.expiresAt).toLocaleString() : '—'}
                     </td>
-                    <td style={{ fontSize: 12, color: '#6c757d' }}>
-                      {new Date(d.createdAt).toLocaleDateString()}
+                    <td style={{ fontSize: 12, color: '#6c757d', whiteSpace: 'nowrap' }}>
+                      {new Date(d.createdAt).toLocaleString()}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -288,9 +350,17 @@ export default function AdminDeposits() {
                             Confirm
                           </button>
                         )}
-                        {d.status === 'awaiting' && (
+                        {(d.status === 'awaiting' || d.status === 'partial') && (
                           <button className="admin-btn admin-btn-danger admin-btn-sm" onClick={() => setExpireId(d.id)}>
                             Expire
+                          </button>
+                        )}
+                        <button className="admin-btn admin-btn-secondary admin-btn-sm" title="USD value of the funds the customer sent" onClick={() => openInspect(d, 'usd')}>
+                          $ Value
+                        </button>
+                        {d.currency !== 'XMR' && d.address && d.address !== 'pending' && (
+                          <button className="admin-btn admin-btn-secondary admin-btn-sm" title="Live balance of the deposit address on the blockchain" onClick={() => openInspect(d, 'chain')}>
+                            Wallet
                           </button>
                         )}
                         {['BTC', 'LTC', 'DOGE'].includes(d.currency) && (
@@ -349,7 +419,7 @@ export default function AdminDeposits() {
                   placeholder="Internal note…"
                 />
               </div>
-              {err && <div style={{ color: '#e53935', fontSize: 13, marginBottom: 12 }}>{err}</div>}
+              {confirmErr && <div style={{ color: '#e53935', fontSize: 13, marginBottom: 12 }}>{confirmErr}</div>}
               <div className="admin-modal-actions">
                 <button type="button" className="admin-btn admin-btn-secondary" onClick={() => setConfirmModal(null)}>Cancel</button>
                 <button type="submit" className="admin-btn admin-btn-success" disabled={confirming}>
@@ -457,6 +527,54 @@ export default function AdminDeposits() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* USD value modal */}
+      {usdModal && (
+        <InspectModal title="USD value" modal={usdModal} onClose={() => setUsdModal(null)}>
+          {v => (
+            <>
+              <InfoRows rows={[
+                ['Current price', v.price ? `${fmt(v.price)} / ${v.currency}` : 'unavailable'],
+                v.expectedAmount != null && ['Expected', `${fmtC(v.expectedAmount)} ${v.currency} ≈ ${fmtUsd(v.expectedUsd)}`],
+                ['Received (recorded)', `${fmtC(v.receivedAmount)} ${v.currency} ≈ ${fmtUsd(v.receivedUsd)}`, v.receivedAmount > 0 ? '#2e7d32' : undefined],
+                ['Credited to customer', v.usdCredited > 0 ? fmt(v.usdCredited) : 'not credited yet', v.usdCredited > 0 ? '#2e7d32' : '#6c757d'],
+                ['Status', <StatusBadge key="s" status={v.status} />],
+              ]} />
+              <div style={{ fontSize: 12, color: '#6c757d', marginBottom: 14, lineHeight: 1.6 }}>
+                Values in USD use today's price ({v.priceSource || 'no price source available'}). The credited amount
+                was computed with the price at confirmation time, so the two can differ.
+                {v.currency === 'XMR' && ' XMR amounts are only known after manual verification in your Monero wallet.'}
+              </div>
+            </>
+          )}
+        </InspectModal>
+      )}
+
+      {/* On-chain wallet modal */}
+      {chainModal && (
+        <InspectModal title="Deposit wallet" modal={chainModal} onClose={() => setChainModal(null)}>
+          {w => (
+            <>
+              <div style={{ background: '#f4f6f9', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all' }}>
+                {w.address}
+              </div>
+              <InfoRows rows={[
+                ['Balance now', `${fmtC(w.total)} ${w.currency} ≈ ${fmtUsd(w.totalUsd)}`, w.total > 0 ? '#2e7d32' : '#6c757d'],
+                w.unconfirmed ? ['Unconfirmed', `${fmtC(w.unconfirmed)} ${w.currency}`, '#e65100'] : null,
+                w.totalReceived != null && ['Total ever received', `${fmtC(w.totalReceived)} ${w.currency} ≈ ${fmtUsd(w.totalReceivedUsd)}`],
+                w.totalSent != null && ['Total sent out (swept)', `${fmtC(w.totalSent)} ${w.currency}`],
+                ['Transactions', w.txCount],
+                ['Recorded as received', `${fmtC(w.recordedReceived)} ${w.currency}`],
+                ['Credited to customer', w.usdCredited > 0 ? fmt(w.usdCredited) : 'not credited yet'],
+              ]} />
+              <div style={{ fontSize: 12, color: '#6c757d', marginBottom: 14, lineHeight: 1.6 }}>
+                Live data from {w.source}. A balance of 0 after a deposit usually means the funds were already swept
+                — compare with "Total ever received".
+              </div>
+            </>
+          )}
+        </InspectModal>
       )}
 
       {/* View address modal */}

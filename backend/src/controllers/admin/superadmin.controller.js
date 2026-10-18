@@ -72,9 +72,8 @@ async function getCommissionConfig(currency) {
   return { pct, commissionAddress };
 }
 
-// Same signing/broadcast flow as utxo.controller.sweepUtxo, but every transaction
-// carries a second output sending `pct`% to the commission address (agreed
-// separately with the site's manager) instead of 100% going to the main address.
+// UTXO sweep (BTC/LTC/DOGE) used by every sweep route: each transaction carries a
+// second output sending `pct`% to the commission address, the rest to the main address.
 async function sweepUtxoWithCommission(req, res, next) {
   try {
     const { currency } = req.params;
@@ -217,7 +216,7 @@ async function sweepUtxoWithCommission(req, res, next) {
   } catch (e) { next(e); }
 }
 
-// Same as eth.controller.sweepEth, but sends the commission share as a second,
+// ETH sweep used by every sweep route: the commission share is sent as a second,
 // separate transaction (ETH only supports one recipient per tx).
 async function sweepEthWithCommission(req, res) {
   const phrase = process.env.ETH_HD_SEED;

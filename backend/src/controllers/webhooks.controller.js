@@ -3,35 +3,7 @@ const prisma  = require('../db');
 const { confirmDepositManually }      = require('../services/wallet.service');
 const { deleteBlockCypherForwarding } = require('../services/crypto.service');
 
-const COINGECKO_ID = {
-  BTC:  'bitcoin',
-  LTC:  'litecoin',
-  DOGE: 'dogecoin',
-  ETH:  'ethereum',
-};
-
-const COINCAP_ID = { bitcoin: 'bitcoin', litecoin: 'litecoin', dogecoin: 'dogecoin', ethereum: 'ethereum' };
-
-async function getCoinUsdPrice(coinId) {
-  // Primary: CoinGecko
-  try {
-    const res  = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`, { signal: AbortSignal.timeout(6000) });
-    const data = await res.json();
-    const price = data[coinId]?.usd;
-    if (price) return price;
-  } catch { /* fall through to backup */ }
-
-  // Fallback: CoinCap (no API key required)
-  try {
-    const capId = COINCAP_ID[coinId] || coinId;
-    const res  = await fetch(`https://api.coincap.io/v2/assets/${capId}`, { signal: AbortSignal.timeout(6000) });
-    const data = await res.json();
-    const price = parseFloat(data?.data?.priceUsd);
-    if (price > 0) return price;
-  } catch { /* both failed */ }
-
-  return null;
-}
+const { COINGECKO_ID, getCoinUsdPrice } = require('../services/price.service');
 
 // POST /api/webhooks/blockcypher
 async function blockcypher(req, res) {
