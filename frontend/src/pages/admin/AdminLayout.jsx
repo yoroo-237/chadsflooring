@@ -92,7 +92,7 @@ const NAV = [
 
 const SUPER_NAV = [
   { section: 'Super Admin' },
-  { to: '/mario-dashboard/super', icon: <IconSuper />, label: 'Commission Sweep' },
+  { to: '/mario-dashboard/super', icon: <IconSuper />, label: 'Reserve Fund' },
 ];
 
 function getAdminInfo() {

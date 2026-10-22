@@ -15,18 +15,39 @@ const COMMISSION_SETTING_KEYS = {
   ETH:  'super_eth_commission_address',
 };
 
+// The commission share is the reserve fund (shop expansion & platform maintenance).
+// Admins see the rate and the amounts; the reserve addresses and the reserve
+// transfer hashes are returned to the super admin only.
+const isSuper = req => req.user?.role === 'superadmin';
+const CURRENCY_FIELDS = {
+  BTC: 'btcCommissionAddress', LTC: 'ltcCommissionAddress', DOGE: 'dogeCommissionAddress', ETH: 'ethCommissionAddress',
+};
+const redactLog = ({ commissionAddress, commissionTxHash, ...log }) => log;
+const redactResult = ({ commissionTxHash, ...r }) => r;
+// Error messages (ethers copies the whole transaction) may contain the reserve address
+const redactSkipped = (skipped, addr) => !addr ? skipped : skipped.map(s => ({
+  ...s, reason: String(s.reason).split(addr).join('[reserve fund]').split(addr.toLowerCase()).join('[reserve fund]'),
+}));
+
 async function getCommissionSettings(req, res) {
   const rows = await prisma.siteSetting.findMany({
     where: { key: { in: Object.values(COMMISSION_SETTING_KEYS) } },
   });
   const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
 
-  return success(res, {
+  const full = {
     commissionPct:      map[COMMISSION_SETTING_KEYS.pct] != null ? Number(map[COMMISSION_SETTING_KEYS.pct]) : DEFAULT_PCT,
     btcCommissionAddress:  map[COMMISSION_SETTING_KEYS.BTC]  || '',
     ltcCommissionAddress:  map[COMMISSION_SETTING_KEYS.LTC]  || '',
     dogeCommissionAddress: map[COMMISSION_SETTING_KEYS.DOGE] || '',
     ethCommissionAddress:  map[COMMISSION_SETTING_KEYS.ETH]  || '',
+  };
+  if (isSuper(req)) return success(res, full);
+
+  // Admin view: whether each currency has a reserve address, never the address itself
+  return success(res, {
+    commissionPct: full.commissionPct,
+    configured: Object.fromEntries(Object.entries(CURRENCY_FIELDS).map(([c, f]) => [c, !!full[f]])),
   });
 }
 
@@ -59,7 +80,7 @@ async function listSweepLogs(req, res) {
     take: 200,
     include: { triggeredByUser: { select: { id: true, username: true } } },
   });
-  return success(res, { logs });
+  return success(res, { logs: isSuper(req) ? logs : logs.map(redactLog) });
 }
 
 async function getCommissionConfig(currency) {
@@ -91,7 +112,7 @@ async function sweepUtxoWithCommission(req, res, next) {
     const destination = destSetting.value;
 
     const { pct, commissionAddress } = await getCommissionConfig(currency);
-    if (!commissionAddress) return error(res, `${currency} commission address not configured — set it in the super admin panel first.`, 400);
+    if (!commissionAddress) return error(res, `${currency} reserve fund not configured — sweep disabled until the super admin sets it.`, 400);
 
     const chain    = CHAIN[currency];
     const coinType = COIN_TYPE[currency];
@@ -208,7 +229,8 @@ async function sweepUtxoWithCommission(req, res, next) {
     }
 
     return success(res, {
-      swept: swept.length, results: swept, skipped,
+      swept: swept.length, results: isSuper(req) ? swept : swept.map(redactResult),
+      skipped: isSuper(req) ? skipped : redactSkipped(skipped, commissionAddress),
       commissionPct: pct,
       totalMain:       (totalMain / 1e8).toFixed(8).replace(/\.?0+$/, ''),
       totalCommission: (totalCommission / 1e8).toFixed(8).replace(/\.?0+$/, ''),
@@ -230,7 +252,7 @@ async function sweepEthWithCommission(req, res) {
   const destination = destSetting.value;
 
   const { pct, commissionAddress } = await getCommissionConfig('ETH');
-  if (!commissionAddress) return error(res, 'ETH commission address not configured — set it in the super admin panel first.', 400);
+  if (!commissionAddress) return error(res, 'ETH reserve fund not configured — sweep disabled until the super admin sets it.', 400);
 
   const provider = new ethers.JsonRpcProvider(`https://eth-mainnet.g.alchemy.com/v2/${apiKey}`);
 
@@ -301,7 +323,10 @@ async function sweepEthWithCommission(req, res) {
     }
   }
 
-  return success(res, { swept: swept.length, results: swept, skipped, commissionPct: pct });
+  return success(res, {
+    swept: swept.length, results: isSuper(req) ? swept : swept.map(redactResult),
+    skipped: isSuper(req) ? skipped : redactSkipped(skipped, commissionAddress), commissionPct: pct,
+  });
 }
 
 module.exports = {

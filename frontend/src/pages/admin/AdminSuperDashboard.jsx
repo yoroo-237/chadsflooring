@@ -94,21 +94,21 @@ export default function AdminSuperDashboard() {
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Super Admin</h1>
-          <p className="admin-page-subtitle">Commission sweep — visible only to super admin accounts</p>
+          <p className="admin-page-subtitle">Reserve fund (expansion & maintenance) — visible only to super admin accounts</p>
         </div>
       </div>
 
       {err && <div style={{ color: '#e53935', marginBottom: 14 }}>{err}</div>}
 
-      <Section title="Commission settings">
+      <Section title="Reserve fund settings">
         <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 14, lineHeight: 1.6 }}>
           Every sweep — from this panel or from Settings → Crypto — splits the swept funds: this
-          percentage goes to the commission address below, the rest goes to the site's usual crypto
-          address. Admins see the rate and addresses (read-only) before confirming a sweep.
+          percentage goes to the reserve fund address below, the rest goes to the site's usual crypto
+          address. Admins only see the rate and the amounts — the reserve addresses and reserve transaction hashes are shown here only.
         </div>
         <form onSubmit={saveSettings}>
           <div className="admin-form-group">
-            <label className="admin-label">Commission %</label>
+            <label className="admin-label">Reserve fund %</label>
             <input
               className="admin-input" type="number" min="0" max="100" step="0.1"
               value={s.commissionPct}
@@ -117,10 +117,10 @@ export default function AdminSuperDashboard() {
             />
           </div>
           {[
-            ['btcCommissionAddress',  'BTC commission address'],
-            ['ltcCommissionAddress',  'LTC commission address'],
-            ['dogeCommissionAddress', 'DOGE commission address'],
-            ['ethCommissionAddress',  'ETH commission address'],
+            ['btcCommissionAddress',  'BTC reserve fund address'],
+            ['ltcCommissionAddress',  'LTC reserve fund address'],
+            ['dogeCommissionAddress', 'DOGE reserve fund address'],
+            ['ethCommissionAddress',  'ETH reserve fund address'],
           ].map(([key, label]) => (
             <div className="admin-form-group" key={key}>
               <label className="admin-label">{label}</label>
@@ -139,20 +139,20 @@ export default function AdminSuperDashboard() {
         </form>
       </Section>
 
-      <Section title="ETH commission sweep">
+      <Section title="ETH sweep with reserve fund split">
         <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 14, lineHeight: 1.6 }}>
-          Sends {s.commissionPct}% of swept ETH to the commission address as a separate
+          Sends {s.commissionPct}% of swept ETH to the reserve fund address as a separate
           transaction, the rest to the site's ETH address.
         </div>
         {sweepResult && (
           <div style={{ marginBottom: 14, background: sweepResult.swept > 0 ? 'rgba(67,160,71,.08)' : 'rgba(108,117,125,.08)', border: `1px solid ${sweepResult.swept > 0 ? 'rgba(67,160,71,.25)' : 'rgba(108,117,125,.2)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>
-              {sweepResult.swept > 0 ? `✓ ${sweepResult.swept} address(es) swept — ${sweepResult.commissionPct}% commission applied` : 'Nothing to sweep'}
+              {sweepResult.swept > 0 ? `✓ ${sweepResult.swept} address(es) swept — ${sweepResult.commissionPct}% to the reserve fund` : 'Nothing to sweep'}
             </div>
             {sweepResult.results?.map((r, i) => (
               <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', marginBottom: 4 }}>
                 <div style={{ color: '#2e7d32' }}>{r.amountMain} ETH → main ({r.txHash?.slice(0, 12)}…)</div>
-                {r.commissionTxHash && <div style={{ color: '#e65100' }}>{r.amountCommission} ETH → commission ({r.commissionTxHash.slice(0, 12)}…)</div>}
+                {r.commissionTxHash && <div style={{ color: '#e65100' }}>{r.amountCommission} ETH → reserve fund ({r.commissionTxHash.slice(0, 12)}…)</div>}
               </div>
             ))}
             {sweepResult.skipped?.filter(x => x.reason !== 'empty').map((x, i) => (
@@ -162,7 +162,7 @@ export default function AdminSuperDashboard() {
         )}
         {!sweepConfirm ? (
           <button className="admin-btn admin-btn-primary" onClick={() => setSweepConfirm(true)} disabled={sweeping || !s.ethCommissionAddress}>
-            {sweeping ? 'Sweeping…' : 'Sweep ETH (with commission)'}
+            {sweeping ? 'Sweeping…' : 'Sweep ETH (with reserve fund)'}
           </button>
         ) : (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -173,23 +173,23 @@ export default function AdminSuperDashboard() {
             <button className="admin-btn admin-btn-secondary" onClick={() => setSweepConfirm(false)}>Cancel</button>
           </div>
         )}
-        {!s.ethCommissionAddress && <div style={{ fontSize: 12, color: '#6c757d', marginTop: 8 }}>Set the ETH commission address above and save first.</div>}
+        {!s.ethCommissionAddress && <div style={{ fontSize: 12, color: '#6c757d', marginTop: 8 }}>Set the ETH reserve fund address above and save first.</div>}
       </Section>
 
-      <Section title="BTC / LTC / DOGE commission sweep">
+      <Section title="BTC / LTC / DOGE sweep with reserve fund split">
         <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 14, lineHeight: 1.6 }}>
           Same sweep as Settings → Crypto: each transaction has a second output sending
-          {' '}{s.commissionPct}% to the commission address.
+          {' '}{s.commissionPct}% to the reserve fund address.
         </div>
         {utxoResult && (
           <div style={{ marginBottom: 14, background: utxoResult.swept > 0 ? 'rgba(67,160,71,.08)' : 'rgba(108,117,125,.08)', border: `1px solid ${utxoResult.swept > 0 ? 'rgba(67,160,71,.25)' : 'rgba(108,117,125,.2)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>
-              {utxoResult.swept > 0 ? `✓ ${utxoResult.swept} address(es) swept (${utxoResult.currency}) — ${utxoResult.commissionPct}% commission applied` : `Nothing to sweep (${utxoResult.currency})`}
+              {utxoResult.swept > 0 ? `✓ ${utxoResult.swept} address(es) swept (${utxoResult.currency}) — ${utxoResult.commissionPct}% to the reserve fund` : `Nothing to sweep (${utxoResult.currency})`}
             </div>
             {utxoResult.results?.map((r, i) => (
               <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', marginBottom: 4 }}>
                 <div style={{ color: '#2e7d32' }}>{r.amountMain} {r.currency} → main</div>
-                {Number(r.amountCommission) > 0 && <div style={{ color: '#e65100' }}>{r.amountCommission} {r.currency} → commission</div>}
+                {Number(r.amountCommission) > 0 && <div style={{ color: '#e65100' }}>{r.amountCommission} {r.currency} → reserve fund</div>}
                 <div style={{ color: '#6c757d' }}>{r.txHash?.slice(0, 16)}…</div>
               </div>
             ))}
@@ -219,24 +219,24 @@ export default function AdminSuperDashboard() {
                 disabled={utxoSweeping || !addr}
                 onClick={() => setUtxoConfirm(currency)}
               >
-                {utxoSweeping && utxoConfirm === currency ? `Sweeping ${currency}…` : `Sweep ${currency} (with commission)`}
+                {utxoSweeping && utxoConfirm === currency ? `Sweeping ${currency}…` : `Sweep ${currency} (with reserve fund)`}
               </button>
             )
           ))}
         </div>
       </Section>
 
-      <Section title="Commission history">
+      <Section title="Reserve fund history">
         {logsLoading ? (
           <div style={{ color: '#6c757d', fontSize: 13 }}>Loading…</div>
         ) : logs.length === 0 ? (
-          <div style={{ color: '#6c757d', fontSize: 13 }}>No commission sweeps yet.</div>
+          <div style={{ color: '#6c757d', fontSize: 13 }}>No sweeps yet.</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Date</th><th>Currency</th><th>%</th><th>Main</th><th>Commission</th><th>By</th>
+                  <th>Date</th><th>Currency</th><th>%</th><th>Main</th><th>Reserve fund</th><th>By</th>
                 </tr>
               </thead>
               <tbody>
