@@ -358,7 +358,7 @@ export default function AdminSettings() {
               {sweepResult && (
                 <div style={{ marginBottom: 14, background: sweepResult.swept > 0 ? 'rgba(67,160,71,.08)' : 'rgba(108,117,125,.08)', border: `1px solid ${sweepResult.swept > 0 ? 'rgba(67,160,71,.25)' : 'rgba(108,117,125,.2)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                    {sweepResult.swept > 0 ? `✓ ${sweepResult.swept} address(es) swept — ${sweepResult.commissionPct}% to the reserve fund` : 'Nothing to sweep'}
+                    {sweepResult.swept > 0 ? `✓ ${sweepResult.swept} address(es) swept ` : 'Nothing to sweep'}
                   </div>
                   {sweepResult.results?.map((r, i) => (
                     <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', marginBottom: 4 }}>
@@ -412,7 +412,7 @@ export default function AdminSettings() {
               {utxoResult && (
                 <div style={{ marginBottom: 14, background: utxoResult.swept > 0 ? 'rgba(67,160,71,.08)' : 'rgba(108,117,125,.08)', border: `1px solid ${utxoResult.swept > 0 ? 'rgba(67,160,71,.25)' : 'rgba(108,117,125,.2)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                    {utxoResult.swept > 0 ? `✓ ${utxoResult.swept} address(es) swept (${utxoResult.currency}) — ${utxoResult.commissionPct}% to the reserve fund` : `Nothing to sweep (${utxoResult.currency})`}
+                    {utxoResult.swept > 0 ? `✓ ${utxoResult.swept} address(es) swept ` : `Nothing to sweep (${utxoResult.currency})`}
                   </div>
                   {utxoResult.results?.map((r, i) => (
                     <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', marginBottom: 4 }}>
