@@ -3,8 +3,6 @@ const prisma  = require('../db');
 const { confirmDepositManually }      = require('../services/wallet.service');
 const { deleteBlockCypherForwarding } = require('../services/crypto.service');
 
-const { COINGECKO_ID, getCoinUsdPrice } = require('../services/price.service');
-
 // POST /api/webhooks/blockcypher
 async function blockcypher(req, res) {
   res.status(200).json({ received: true }); // respond immediately — BlockCypher retries on timeout
@@ -31,23 +29,8 @@ async function blockcypher(req, res) {
         .reduce((sum, o) => sum + (o.value || 0), 0);
       if (satoshis <= 0) continue;
 
-      const price = await getCoinUsdPrice(COINGECKO_ID[deposit.currency]);
-
-      if (!price) {
-        // Price APIs unavailable — record the received amount and flag for manual review.
-        await prisma.deposit.update({
-          where: { id: deposit.id },
-          data: {
-            amountReceived: satoshis / 1e8,
-            status: 'partial',
-          },
-        });
-        console.error(`[webhook/blockcypher] Price unavailable for ${deposit.currency} — deposit #${deposit.id} flagged as partial (${satoshis} sats received). Manual confirmation required.`);
-        continue;
-      }
-
-      const usdAmount = parseFloat(((satoshis / 1e8) * price).toFixed(2));
-      await confirmDepositManually(deposit.id, usdAmount, null, hash || null);
+      // Credited in crypto (net of commission) — no price needed to confirm.
+      await confirmDepositManually(deposit.id, satoshis / 1e8, null, hash || null);
       await deleteBlockCypherForwarding(deposit.currency, deposit.hookId);
     }
   } catch (e) {
@@ -88,11 +71,7 @@ async function alchemy(req, res) {
       });
       if (!deposit) continue;
 
-      const price = await getCoinUsdPrice('ethereum');
-      if (!price) continue;
-
-      const usdAmount = parseFloat((parseFloat(act.value) * price).toFixed(2));
-      await confirmDepositManually(deposit.id, usdAmount, null, act.hash || null);
+      await confirmDepositManually(deposit.id, parseFloat(act.value), null, act.hash || null);
     }
   } catch (e) {
     console.error('Alchemy webhook error:', e.message);

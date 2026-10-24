@@ -10,6 +10,8 @@ const placeOrderSchema = z.object({
       })
     )
     .min(1, 'Cart is empty.'),
+  // Pay from one holding only; omitted = largest holdings first.
+  payCurrency: z.enum(['BTC', 'LTC', 'DOGE', 'ETH', 'XMR']).optional(),
 });
 
 module.exports = { placeOrderSchema };

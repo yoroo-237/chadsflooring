@@ -16,7 +16,7 @@ export default function AdminUserDetail() {
 
   // Balance adjust modal
   const [balModal, setBalModal] = useState(false);
-  const [balForm, setBalForm]   = useState({ type: 'credit', amount: '', reason: '' });
+  const [balForm, setBalForm]   = useState({ type: 'credit', currency: 'BTC', unit: 'crypto', amount: '', reason: '' });
   const [balSaving, setBalSaving] = useState(false);
   const [balErr, setBalErr]     = useState(null);
 
@@ -51,7 +51,13 @@ export default function AdminUserDetail() {
   const adjustBalance = async e => {
     e.preventDefault(); setBalSaving(true); setBalErr(null);
     try {
-      await adminFetch(`/admin/users/${id}/wallet/adjust`, { method: 'POST', body: balForm });
+      await adminFetch(`/admin/users/${id}/wallet/adjust`, {
+        method: 'POST',
+        body: {
+          type: balForm.type, currency: balForm.currency, reason: balForm.reason,
+          ...(balForm.unit === 'usd' ? { usdAmount: balForm.amount } : { amount: balForm.amount }),
+        },
+      });
       setBalModal(false);
       load();
     } catch (e) { setBalErr(e.message); }
@@ -112,7 +118,7 @@ export default function AdminUserDetail() {
           </button>
           <button className="admin-btn admin-btn-secondary" onClick={() => { setPwdForm({ password: '', confirm: '' }); setPwdErr(null); setPwdOk(false); setPwdVisible(false); setPwdModal(true); }}>Set Password</button>
           <button className="admin-btn admin-btn-secondary" onClick={() => setEditModal(true)}>Edit User</button>
-          <button className="admin-btn admin-btn-primary" onClick={() => { setBalForm({ type: 'credit', amount: '', reason: '' }); setBalModal(true); }}>
+          <button className="admin-btn admin-btn-primary" onClick={() => { setBalForm({ type: 'credit', currency: 'BTC', unit: 'crypto', amount: '', reason: '' }); setBalModal(true); }}>
             Adjust Balance
           </button>
         </div>
@@ -138,7 +144,13 @@ export default function AdminUserDetail() {
               <div className="admin-info-row"><span className="admin-info-label">Markup</span><span className="admin-info-value">{u.markupPct ?? 0}%</span></div>
               <div className="admin-info-row"><span className="admin-info-label">Points</span><span className="admin-info-value">{u.points ?? 0}</span></div>
               <div className="admin-info-row"><span className="admin-info-label">Total Spent</span><span className="admin-info-value">{fmt(u.totalSpent || 0)}</span></div>
-              <div className="admin-info-row"><span className="admin-info-label">Balance</span><span className="admin-info-value" style={{ color: '#43a047', fontWeight: 700 }}>{fmt(u.balance || 0)}</span></div>
+              <div className="admin-info-row"><span className="admin-info-label">Balance (live)</span><span className="admin-info-value" style={{ color: '#43a047', fontWeight: 700 }}>{fmt(u.balance || 0)}</span></div>
+              {(u.holdings || []).map(h => (
+                <div key={h.currency} className="admin-info-row">
+                  <span className="admin-info-label" style={{ paddingLeft: 12 }}>{h.currency}</span>
+                  <span className="admin-info-value" style={{ fontFamily: 'monospace', fontSize: 12 }}>{h.amount} {h.usd != null ? `(${fmt(h.usd)})` : ''}</span>
+                </div>
+              ))}
               <div className="admin-info-row"><span className="admin-info-label">Joined</span><span className="admin-info-value">{new Date(u.createdAt).toLocaleString()}</span></div>
               {u.lastLoginAt && <div className="admin-info-row"><span className="admin-info-label">Last Login</span><span className="admin-info-value">{new Date(u.lastLoginAt).toLocaleString()}</span></div>}
             </div>
@@ -326,8 +338,20 @@ export default function AdminUserDetail() {
                 </select>
               </div>
               <div className="admin-form-group">
-                <label className="admin-label">Amount *</label>
-                <input className="admin-input" type="number" min="0.01" step="0.01" value={balForm.amount} onChange={e => setBalForm(f => ({ ...f, amount: e.target.value }))} required />
+                <label className="admin-label">Currency</label>
+                <select className="admin-select" value={balForm.currency} onChange={e => setBalForm(f => ({ ...f, currency: e.target.value }))}>
+                  {['BTC', 'LTC', 'DOGE', 'ETH', 'XMR'].map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-label">Amount * ({balForm.unit === 'usd' ? 'USD, converted at the live price' : balForm.currency})</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="admin-input" type="number" min="0.00000001" step={balForm.unit === 'usd' ? '0.01' : '0.00000001'} value={balForm.amount} onChange={e => setBalForm(f => ({ ...f, amount: e.target.value }))} required />
+                  <select className="admin-select" style={{ width: 110 }} value={balForm.unit} onChange={e => setBalForm(f => ({ ...f, unit: e.target.value }))}>
+                    <option value="crypto">{balForm.currency}</option>
+                    <option value="usd">USD</option>
+                  </select>
+                </div>
               </div>
               <div className="admin-form-group">
                 <label className="admin-label">Reason *</label>

@@ -37,6 +37,9 @@ async function listDeposits(req, res, next) {
         amountExpected: d.amountExpected != null ? parseFloat(d.amountExpected) : null,
         amountReceived: parseFloat(d.amountReceived),
         usdCredited:    parseFloat(d.usdCredited),
+        commissionPct:    parseFloat(d.commissionPct),
+        commissionAmount: parseFloat(d.commissionAmount),
+        netAmount:        parseFloat(d.netAmount),
       })),
       total,
       pagination: buildPagination(page, limit, total),
@@ -47,11 +50,18 @@ async function listDeposits(req, res, next) {
 async function confirmDeposit(req, res, next) {
   try {
     const id = parseInt(req.params.id);
-    const { usdAmount } = req.body;
-
-    const amt = parseFloat(usdAmount);
-    if (!amt || amt <= 0) {
-      return error(res, 'usdAmount must be a positive number.', 400);
+    // `amount` is the crypto actually received (preferred). `usdAmount` is still
+    // accepted and converted at the current price for older clients.
+    let amt = parseFloat(req.body.amount);
+    if (!(amt > 0) && parseFloat(req.body.usdAmount) > 0) {
+      const d = await prisma.deposit.findUnique({ where: { id } });
+      if (!d) return error(res, 'Deposit not found.', 404);
+      const price = await getCurrencyUsdPrice(d.currency);
+      if (!price) return error(res, `${d.currency} price unavailable — enter the crypto amount received instead.`, 503);
+      amt = parseFloat(req.body.usdAmount) / price;
+    }
+    if (!(amt > 0)) {
+      return error(res, 'amount (crypto received) must be a positive number.', 400);
     }
 
     const result = await confirmDepositManually(id, amt, req.user.id);

@@ -2,22 +2,22 @@ const axios = require('axios');
 const prisma = require('../db');
 const { success, error } = require('../utils/apiResponse');
 const walletService = require('../services/wallet.service');
+const { getUserBalance } = require('../services/balance.service');
+const { getCachedUsdPrices } = require('../services/price.service');
 
 const BLOCKCYPHER_CHAIN = { BTC: 'btc/main', LTC: 'ltc/main', DOGE: 'doge/main' };
-const COINGECKO_ID      = { BTC: 'bitcoin', LTC: 'litecoin', DOGE: 'dogecoin', ETH: 'ethereum' };
 
-async function fetchUsdPrice(currency) {
-  try {
-    const id  = COINGECKO_ID[currency];
-    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`);
-    const d   = await res.json();
-    return d[id]?.usd || null;
-  } catch { return null; }
-}
+const currentBalance = async userId => (await getUserBalance(userId)).balance;
 
 async function getWallet(req, res) {
   const data = await walletService.getWallet(req.user.id);
   return success(res, data);
+}
+
+// Live prices used to value balances — polled by the client to keep the balance current.
+async function getPrices(req, res) {
+  const prices = await getCachedUsdPrices();
+  return success(res, { prices, pricedAt: new Date().toISOString() });
 }
 
 async function listTransactions(req, res) {
@@ -60,8 +60,7 @@ async function checkDeposit(req, res, next) {
 
     // Already resolved — return current status + fresh balance
     if (deposit.status === 'confirmed') {
-      const u = await prisma.user.findUnique({ where: { id: req.user.id }, select: { balance: true } });
-      return success(res, { status: 'confirmed', newBalance: parseFloat(u.balance) });
+      return success(res, { status: 'confirmed', newBalance: await currentBalance(req.user.id) });
     }
     if (deposit.status === 'expired') return success(res, { status: 'expired' });
 
@@ -86,15 +85,10 @@ async function checkDeposit(req, res, next) {
       const satoshis = addrRes.data.balance || 0;
       if (satoshis === 0) return success(res, { status: 'awaiting' });
 
-      const price = await fetchUsdPrice(deposit.currency);
-      if (!price) return success(res, { status: 'awaiting' });
+      const txHash = addrRes.data.txrefs?.[0]?.tx_hash || null;
+      await walletService.confirmDepositManually(deposit.id, satoshis / 1e8, null, txHash);
 
-      const txHash    = addrRes.data.txrefs?.[0]?.tx_hash || null;
-      const usdAmount = parseFloat(((satoshis / 1e8) * price).toFixed(2));
-      await walletService.confirmDepositManually(deposit.id, usdAmount, null, txHash);
-
-      const u = await prisma.user.findUnique({ where: { id: req.user.id }, select: { balance: true } });
-      return success(res, { status: 'confirmed', newBalance: parseFloat(u.balance) });
+      return success(res, { status: 'confirmed', newBalance: await currentBalance(req.user.id) });
     }
 
     // ── ETH via Alchemy ───────────────────────────────────────────────────────
@@ -108,25 +102,20 @@ async function checkDeposit(req, res, next) {
       const balWei = BigInt(rpc.data.result || '0x0');
       if (balWei === 0n) return success(res, { status: 'awaiting' });
 
-      const price = await fetchUsdPrice('ETH');
-      if (!price) return success(res, { status: 'awaiting' });
+      await walletService.confirmDepositManually(deposit.id, Number(balWei) / 1e18, null, null);
 
-      const usdAmount = parseFloat((Number(balWei) / 1e18 * price).toFixed(2));
-      await walletService.confirmDepositManually(deposit.id, usdAmount, null, null);
-
-      const u = await prisma.user.findUnique({ where: { id: req.user.id }, select: { balance: true } });
-      return success(res, { status: 'confirmed', newBalance: parseFloat(u.balance) });
+      return success(res, { status: 'confirmed', newBalance: await currentBalance(req.user.id) });
     }
 
     return success(res, { status: 'awaiting' });
   } catch (e) {
     // Race condition: webhook already confirmed it between our status check and confirmDepositManually
     if (e.status === 422) {
-      const u = await prisma.user.findUnique({ where: { id: req.user.id }, select: { balance: true } }).catch(() => null);
-      return success(res, { status: 'confirmed', newBalance: u ? parseFloat(u.balance) : null });
+      const newBalance = await currentBalance(req.user.id).catch(() => null);
+      return success(res, { status: 'confirmed', newBalance });
     }
     next(e);
   }
 }
 
-module.exports = { getWallet, listTransactions, listDeposits, getDeposit, createDeposit, checkDeposit };
+module.exports = { getWallet, getPrices, listTransactions, listDeposits, getDeposit, createDeposit, checkDeposit };

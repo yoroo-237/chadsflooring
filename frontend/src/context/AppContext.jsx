@@ -29,6 +29,9 @@ export function AppProvider({ children }) {
   const [search, setSearch]             = useState('');
   const [user, setUser]                 = useState(null);
   const [balance, setBalance]           = useState(0);
+  // Crypto held per currency (net of deposit fees) with live prices; balance = Σ usd
+  const [holdings, setHoldings]         = useState([]);
+  const [depositFeePct, setDepositFeePct] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [deposits, setDeposits]         = useState([]);
   const [categories, setCategories]     = useState([]);
@@ -40,6 +43,13 @@ export function AppProvider({ children }) {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  const applyWallet = useCallback((w) => {
+    if (!w) return;
+    if (w.balance != null) setBalance(Number(w.balance));
+    if (Array.isArray(w.holdings)) setHoldings(w.holdings);
+    if (w.commissionPct != null) setDepositFeePct(Number(w.commissionPct));
+  }, []);
+
   const loadUserData = useCallback(async () => {
     const [profileData, walletData, catsData, settingsData] = await Promise.all([
       api.get('/profile').catch(() => null),
@@ -48,12 +58,12 @@ export function AppProvider({ children }) {
       api.get('/content/settings').catch(() => null),
     ]);
     if (profileData) setUser(profileData.user || profileData);
-    if (walletData?.balance != null) setBalance(Number(walletData.balance));
+    applyWallet(walletData);
     const cats = catsData?.categories ?? (Array.isArray(catsData) ? catsData : null);
     if (cats) setCategories(cats);
     const sett = settingsData?.settings ?? settingsData;
     if (sett && typeof sett === 'object') setSettings(sett);
-  }, []);
+  }, [applyWallet]);
 
   const login = useCallback(async (username, password) => {
     const base = (process.env.REACT_APP_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '');
@@ -103,7 +113,7 @@ export function AppProvider({ children }) {
     showToast(`${product.name} added to cart`, 'success');
   }, [showToast]);
 
-  const placeOrder = useCallback(async () => {
+  const placeOrder = useCallback(async ({ payCurrency } = {}) => {
     const grouped = cartItems.reduce((acc, item) => {
       const id = item.id;
       if (!acc[id]) acc[id] = { productId: id, quantity: 0 };
@@ -111,20 +121,31 @@ export function AppProvider({ children }) {
       return acc;
     }, {});
     const items = Object.values(grouped);
-    const body = { items };
+    const body = { items, ...(payCurrency ? { payCurrency } : {}) };
     const data = await api.post('/orders', body);
     const order = data.order || data;
     setOrders(prev => [order, ...prev]);
     setCartItems([]);
     if (data.newBalance != null) setBalance(Number(data.newBalance));
+    api.get('/wallet').then(applyWallet).catch(() => {});
     showToast('Order placed successfully!', 'success');
     return order;
-  }, [cartItems, showToast]);
+  }, [cartItems, showToast, applyWallet]);
 
   const refreshBalance = useCallback(async () => {
     const data = await api.get('/wallet/balance').catch(() => null);
-    if (data?.balance != null) setBalance(Number(data.balance));
-  }, []);
+    applyWallet(data);
+  }, [applyWallet]);
+
+  // The balance is crypto valued at market price, so it moves on its own:
+  // re-value it every 30s while signed in and the tab is visible.
+  useEffect(() => {
+    if (!user) return;
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') refreshBalance();
+    }, 30000);
+    return () => clearInterval(id);
+  }, [user, refreshBalance]);
 
   const refreshDeposits = useCallback(async () => {
     const data = await api.get('/wallet/deposits').catch(() => null);
@@ -174,7 +195,7 @@ export function AppProvider({ children }) {
       search, setSearch,
       user, setUser,
       profile, setProfile: (p) => setUser(u => ({ ...u, ...p })),
-      balance, setBalance, refreshBalance,
+      balance, setBalance, refreshBalance, holdings, depositFeePct,
       transactions, setTransactions, refreshTransactions,
       deposits, setDeposits, refreshDeposits,
       products, setProducts,

@@ -261,7 +261,7 @@ const FAQ = [
   { question: 'How do I track my order?',                         answer: 'Once your order ships, you will receive a tracking number via your notification settings. You can also view it in your Orders page.',                                                               sortOrder: 7  },
   { question: 'Is my information secure?',                        answer: 'Yes. We use industry-standard encryption and never store sensitive payment information. All transactions are processed via blockchain.',                                                             sortOrder: 8  },
   { question: 'Can I change or cancel my order?',                 answer: 'Orders in "Processing" status can be cancelled. Once an order is shipped, it cannot be cancelled but may be eligible for a return.',                                                               sortOrder: 9  },
-  { question: 'How do crypto deposits work?',                     answer: 'Go to your Wallet page, select a cryptocurrency, and send any amount to the generated address. Your balance is credited in USD at the confirmed exchange rate. Addresses expire after 12 hours.',  sortOrder: 10 },
+  { question: 'How do crypto deposits work?',                     answer: 'Go to your Wallet page, select a cryptocurrency, and send any amount to the generated address. Your balance holds the crypto you deposited (minus the deposit fee shown before you pay) and its USD value follows the live market price. Addresses expire after 12 hours.',  sortOrder: 10 },
 ];
 
 // ── Main ──────────────────────────────────────────────────────────────────────

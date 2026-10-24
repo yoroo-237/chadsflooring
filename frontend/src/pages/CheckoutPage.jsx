@@ -18,7 +18,8 @@ function CheckIcon() {
 }
 
 export default function CheckoutPage() {
-  const { cartItems, placeOrder, balance, settings } = useApp();
+  const { cartItems, placeOrder, balance, holdings, settings } = useApp();
+  const [payCurrency, setPayCurrency] = useState('');
   const navigate = useNavigate();
 
   const [placing, setPlacing] = useState(false);
@@ -34,14 +35,18 @@ export default function CheckoutPage() {
 
   const shippingFee = (freeThreshold > 0 && subtotal >= freeThreshold) ? 0 : shippingCost;
   const total = subtotal + shippingFee;
-  const hasEnoughBalance = balance >= total;
+  const payHolding = holdings.find(h => h.currency === payCurrency);
+  const available = payHolding ? (payHolding.usd || 0) : balance;
+  const hasEnoughBalance = available >= total;
+  // Preview of the crypto that will be deducted; the server re-prices and freezes it on submit.
+  const cryptoPreview = payHolding?.price ? (total / payHolding.price).toFixed(8).replace(/0+$/, '') : null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!hasEnoughBalance) return;
     setPlacing(true); setServerErr('');
     try {
-      const order = await placeOrder();
+      const order = await placeOrder({ payCurrency: payCurrency || undefined });
       setPlaced(order);
     } catch (err) {
       setServerErr(err.message || 'Failed to place order. Please try again.');
@@ -112,14 +117,33 @@ export default function CheckoutPage() {
               <h3 className="checkout-section-title">Payment</h3>
               <p className="payment-note">Your order is paid instantly from your wallet balance.</p>
               <div className="summary-row" style={{ marginTop: 8 }}>
-                <span>Wallet balance</span>
+                <span>Wallet balance (live)</span>
                 <span>${balance.toFixed(2)}</span>
               </div>
+              {holdings.length > 1 && (
+                <label className="checkout-pay-with">
+                  <span>Pay with</span>
+                  <select value={payCurrency} onChange={e => setPayCurrency(e.target.value)}>
+                    <option value="">Automatic — largest balance first</option>
+                    {holdings.map(h => (
+                      <option key={h.currency} value={h.currency}>
+                        {h.currency} — {h.amount} (${(h.usd || 0).toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {cryptoPreview && (
+                <p className="checkout-rate-note">≈ {cryptoPreview} {payCurrency} at the current price.</p>
+              )}
+              <p className="checkout-rate-note">
+                The total is converted at the live price when you place the order — that amount of crypto is locked in for this order.
+              </p>
             </div>
 
             {!hasEnoughBalance && (
               <div className="checkout-balance-error">
-                Insufficient balance — your wallet has ${balance.toFixed(2)} but this order costs ${total.toFixed(2)}.{' '}
+                Insufficient balance — {payHolding ? `your ${payCurrency}` : 'your wallet'} has ${available.toFixed(2)} but this order costs ${total.toFixed(2)}.{' '}
                 <Link to="/wallet">Top up your wallet →</Link>
               </div>
             )}

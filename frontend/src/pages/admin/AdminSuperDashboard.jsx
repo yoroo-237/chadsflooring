@@ -11,7 +11,16 @@ function Section({ title, children }) {
 }
 
 const fmtDate = d => new Date(d).toLocaleString();
+const COINS = [
+  { currency: 'BTC',  color: '#f7931a', key: 'btcCommissionAddress' },
+  { currency: 'LTC',  color: '#345d9d', key: 'ltcCommissionAddress' },
+  { currency: 'DOGE', color: '#c2a633', key: 'dogeCommissionAddress' },
+  { currency: 'ETH',  color: '#627eea', key: 'ethCommissionAddress' },
+];
 
+// The commission is deducted from each customer deposit when it is credited, and
+// stays on the deposit address until swept from here. The admin's own sweep only
+// collects the customer-credited share, so the two never touch each other's funds.
 export default function AdminSuperDashboard() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading]   = useState(true);
@@ -19,29 +28,30 @@ export default function AdminSuperDashboard() {
   const [saved, setSaved]       = useState(false);
   const [err, setErr]           = useState(null);
 
-  const [logs, setLogs]         = useState([]);
+  const [logs, setLogs]               = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
+  const [pending, setPending]         = useState([]);
+  const [collected, setCollected]     = useState([]);
 
-  const [sweeping, setSweeping]         = useState(false);
-  const [sweepConfirm, setSweepConfirm] = useState(false);
-  const [sweepResult, setSweepResult]   = useState(null);
-
-  const [utxoConfirm, setUtxoConfirm]   = useState(null);
-  const [utxoSweeping, setUtxoSweeping] = useState(false);
-  const [utxoResult, setUtxoResult]     = useState(null);
+  const [confirm, setConfirm]   = useState(null);  // currency awaiting confirmation
+  const [sweeping, setSweeping] = useState(null);  // currency being swept
+  const [result, setResult]     = useState(null);
 
   const loadSettings = () => {
     adminFetch('/admin/superadmin/settings')
       .then(d => { setSettings(d); setLoading(false); })
       .catch(e => { setErr(e.message); setLoading(false); });
   };
-  const loadLogs = () => {
+  const loadActivity = () => {
     adminFetch('/admin/superadmin/sweep-logs')
       .then(d => { setLogs(d.logs || []); setLogsLoading(false); })
       .catch(() => setLogsLoading(false));
+    adminFetch('/admin/superadmin/pending')
+      .then(d => { setPending(d.pending || []); setCollected(d.collected || []); })
+      .catch(() => {});
   };
 
-  useEffect(() => { loadSettings(); loadLogs(); }, []);
+  useEffect(() => { loadSettings(); loadActivity(); }, []);
 
   const set = (k, v) => setSettings(s => ({ ...s, [k]: v }));
 
@@ -64,66 +74,53 @@ export default function AdminSuperDashboard() {
     finally { setSaving(false); }
   };
 
-  const doEthSweep = async () => {
-    setSweeping(true); setSweepResult(null); setSweepConfirm(false); setErr(null);
+  const doSweep = async () => {
+    const currency = confirm;
+    setSweeping(currency); setResult(null); setConfirm(null); setErr(null);
     try {
-      const r = await adminFetch('/admin/superadmin/eth/sweep', { method: 'POST' });
-      setSweepResult(r);
-      loadLogs();
+      const path = currency === 'ETH' ? '/admin/superadmin/eth/sweep' : `/admin/superadmin/utxo/sweep/${currency}`;
+      setResult(await adminFetch(path, { method: 'POST' }));
+      loadActivity();
     } catch (e) { setErr(e.message); }
-    finally { setSweeping(false); }
-  };
-
-  const doUtxoSweep = async () => {
-    const currency = utxoConfirm;
-    setUtxoSweeping(true); setUtxoResult(null); setUtxoConfirm(null); setErr(null);
-    try {
-      const r = await adminFetch(`/admin/superadmin/utxo/sweep/${currency}`, { method: 'POST' });
-      setUtxoResult({ ...r, currency });
-      loadLogs();
-    } catch (e) { setErr(e.message); }
-    finally { setUtxoSweeping(false); }
+    finally { setSweeping(null); }
   };
 
   if (loading) return <div style={{ padding: 40, color: '#6c757d' }}>Loading…</div>;
 
   const s = settings;
+  const pendingOf = c => pending.find(p => p.currency === c);
+  const reserveLogs = logs.filter(l => l.kind !== 'shop');
 
   return (
     <div>
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Super Admin</h1>
-          <p className="admin-page-subtitle">Reserve fund (expansion & maintenance) — visible only to super admin accounts</p>
+          <p className="admin-page-subtitle">Deposit commission & reserve fund — visible only to super admin accounts</p>
         </div>
       </div>
 
       {err && <div style={{ color: '#e53935', marginBottom: 14 }}>{err}</div>}
 
-      <Section title="Reserve fund settings">
+      <Section title="Deposit commission">
         <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 14, lineHeight: 1.6 }}>
-          Every sweep — from this panel or from Settings → Crypto — splits the swept funds: this
-          percentage goes to the reserve fund address below, the rest goes to the site's usual crypto
-          address. Admins only see the rate and the amounts — the reserve addresses and reserve transaction hashes are shown here only.
+          This percentage is deducted from every customer deposit when it is credited — the customer is credited the rest
+          and sees the rate before depositing. The commission is swept to the reserve addresses below, separately from the admin's sweep.
+          A new rate applies to deposits confirmed after saving.
         </div>
         <form onSubmit={saveSettings}>
           <div className="admin-form-group">
-            <label className="admin-label">Reserve fund %</label>
+            <label className="admin-label">Commission % per deposit</label>
             <input
-              className="admin-input" type="number" min="0" max="100" step="0.1"
+              className="admin-input" type="number" min="0" max="99" step="0.1"
               value={s.commissionPct}
               onChange={e => set('commissionPct', e.target.value)}
               style={{ maxWidth: 140 }}
             />
           </div>
-          {[
-            ['btcCommissionAddress',  'BTC reserve fund address'],
-            ['ltcCommissionAddress',  'LTC reserve fund address'],
-            ['dogeCommissionAddress', 'DOGE reserve fund address'],
-            ['ethCommissionAddress',  'ETH reserve fund address'],
-          ].map(([key, label]) => (
+          {COINS.map(({ currency, key }) => (
             <div className="admin-form-group" key={key}>
-              <label className="admin-label">{label}</label>
+              <label className="admin-label">{currency} reserve address</label>
               <input
                 className="admin-input" type="text"
                 value={s[key] || ''}
@@ -139,87 +136,62 @@ export default function AdminSuperDashboard() {
         </form>
       </Section>
 
-      <Section title="ETH sweep with reserve fund split">
+      <Section title="Commission to sweep">
         <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 14, lineHeight: 1.6 }}>
-          Sends {s.commissionPct}% of swept ETH to the reserve fund address as a separate
-          transaction, the rest to the site's ETH address.
+          Commission recorded on confirmed deposits and still sitting on the deposit addresses. Each sweep sends only
+          the commission (minus the network fee) and leaves the customer share for the admin. XMR is collected from the Monero wallet by hand.
         </div>
-        {sweepResult && (
-          <div style={{ marginBottom: 14, background: sweepResult.swept > 0 ? 'rgba(67,160,71,.08)' : 'rgba(108,117,125,.08)', border: `1px solid ${sweepResult.swept > 0 ? 'rgba(67,160,71,.25)' : 'rgba(108,117,125,.2)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>
-              {sweepResult.swept > 0 ? `✓ ${sweepResult.swept} address(es) swept — ${sweepResult.commissionPct}% to the reserve fund` : 'Nothing to sweep'}
-            </div>
-            {sweepResult.results?.map((r, i) => (
-              <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', marginBottom: 4 }}>
-                <div style={{ color: '#2e7d32' }}>{r.amountMain} ETH → main ({r.txHash?.slice(0, 12)}…)</div>
-                {r.commissionTxHash && <div style={{ color: '#e65100' }}>{r.amountCommission} ETH → reserve fund ({r.commissionTxHash.slice(0, 12)}…)</div>}
-              </div>
-            ))}
-            {sweepResult.skipped?.filter(x => x.reason !== 'empty').map((x, i) => (
-              <div key={`s${i}`} style={{ fontSize: 12, color: '#e65100', marginBottom: 2 }}>⚠ {x.address?.slice(0, 12)}… — {x.reason}</div>
-            ))}
-          </div>
-        )}
-        {!sweepConfirm ? (
-          <button className="admin-btn admin-btn-primary" onClick={() => setSweepConfirm(true)} disabled={sweeping || !s.ethCommissionAddress}>
-            {sweeping ? 'Sweeping…' : 'Sweep ETH (with reserve fund)'}
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, color: '#e65100', fontWeight: 600 }}>
-              Split ETH {100 - s.commissionPct}% / {s.commissionPct}% ?
-            </span>
-            <button className="admin-btn admin-btn-success" onClick={doEthSweep} disabled={sweeping}>{sweeping ? 'Sending…' : 'Yes, sweep'}</button>
-            <button className="admin-btn admin-btn-secondary" onClick={() => setSweepConfirm(false)}>Cancel</button>
-          </div>
-        )}
-        {!s.ethCommissionAddress && <div style={{ fontSize: 12, color: '#6c757d', marginTop: 8 }}>Set the ETH reserve fund address above and save first.</div>}
-      </Section>
 
-      <Section title="BTC / LTC / DOGE sweep with reserve fund split">
-        <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 14, lineHeight: 1.6 }}>
-          Same sweep as Settings → Crypto: each transaction has a second output sending
-          {' '}{s.commissionPct}% to the reserve fund address.
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, marginBottom: 14 }}>
+          {[...COINS, { currency: 'XMR', color: '#ff6600' }].map(({ currency, color }) => {
+            const p = pendingOf(currency);
+            const total = collected.find(c => c.currency === currency);
+            return (
+              <div key={currency} style={{ border: `1px solid ${color}55`, borderRadius: 8, padding: '8px 12px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color }}>{currency}</div>
+                <div style={{ fontFamily: 'monospace', fontWeight: 700 }}>{p ? p.amount : 0}</div>
+                <div style={{ fontSize: 11, color: '#6c757d' }}>
+                  {p ? `${p.deposits} deposit(s) pending` : 'nothing pending'}
+                  {total ? ` · ${total.amount} all-time` : ''}
+                </div>
+              </div>
+            );
+          })}
         </div>
-        {utxoResult && (
-          <div style={{ marginBottom: 14, background: utxoResult.swept > 0 ? 'rgba(67,160,71,.08)' : 'rgba(108,117,125,.08)', border: `1px solid ${utxoResult.swept > 0 ? 'rgba(67,160,71,.25)' : 'rgba(108,117,125,.2)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
+
+        {result && (
+          <div style={{ marginBottom: 14, background: result.swept > 0 ? 'rgba(67,160,71,.08)' : 'rgba(108,117,125,.08)', border: `1px solid ${result.swept > 0 ? 'rgba(67,160,71,.25)' : 'rgba(108,117,125,.2)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>
-              {utxoResult.swept > 0 ? `✓ ${utxoResult.swept} address(es) swept (${utxoResult.currency}) — ${utxoResult.commissionPct}% to the reserve fund` : `Nothing to sweep (${utxoResult.currency})`}
+              {result.swept > 0 ? `✓ ${result.swept} address(es) swept — ${result.total} ${result.currency} to the reserve` : `Nothing to sweep (${result.currency})`}
             </div>
-            {utxoResult.results?.map((r, i) => (
-              <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', marginBottom: 4 }}>
-                <div style={{ color: '#2e7d32' }}>{r.amountMain} {r.currency} → main</div>
-                {Number(r.amountCommission) > 0 && <div style={{ color: '#e65100' }}>{r.amountCommission} {r.currency} → reserve fund</div>}
-                <div style={{ color: '#6c757d' }}>{r.txHash?.slice(0, 16)}…</div>
+            {result.results?.map((r, i) => (
+              <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', marginBottom: 4, color: '#2e7d32' }}>
+                {r.amount} {r.currency} <span style={{ color: '#6c757d' }}>({r.txHash?.slice(0, 16)}…)</span>
               </div>
             ))}
-            {utxoResult.skipped?.filter(x => x.reason !== 'empty').map((x, i) => (
+            {result.skipped?.filter(x => x.reason !== 'empty').map((x, i) => (
               <div key={`s${i}`} style={{ fontSize: 12, color: '#e65100', marginBottom: 2 }}>⚠ {x.address?.slice(0, 12)}… — {x.reason}</div>
             ))}
           </div>
         )}
+
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {[
-            { currency: 'BTC',  color: '#f7931a', addr: s.btcCommissionAddress },
-            { currency: 'LTC',  color: '#345d9d', addr: s.ltcCommissionAddress },
-            { currency: 'DOGE', color: '#c2a633', addr: s.dogeCommissionAddress },
-          ].map(({ currency, color, addr }) => (
-            utxoConfirm === currency ? (
+          {COINS.map(({ currency, color, key }) => (
+            confirm === currency ? (
               <div key={currency} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: '#e65100', fontWeight: 600 }}>
-                  Split {currency} {100 - s.commissionPct}% / {s.commissionPct}% ?
-                </span>
-                <button className="admin-btn admin-btn-success admin-btn-sm" onClick={doUtxoSweep} disabled={utxoSweeping}>{utxoSweeping ? 'Sending…' : 'Yes, sweep'}</button>
-                <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={() => setUtxoConfirm(null)}>Cancel</button>
+                <span style={{ fontSize: 13, color: '#e65100', fontWeight: 600 }}>Sweep {currency} commission to the reserve?</span>
+                <button className="admin-btn admin-btn-success admin-btn-sm" onClick={doSweep} disabled={!!sweeping}>Yes, sweep</button>
+                <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={() => setConfirm(null)}>Cancel</button>
               </div>
             ) : (
               <button
                 key={currency} type="button" className="admin-btn admin-btn-sm"
                 style={{ background: `${color}22`, color, border: `1px solid ${color}55`, fontWeight: 700 }}
-                disabled={utxoSweeping || !addr}
-                onClick={() => setUtxoConfirm(currency)}
+                disabled={!!sweeping || !s[key]}
+                title={!s[key] ? `Set the ${currency} reserve address first` : undefined}
+                onClick={() => setConfirm(currency)}
               >
-                {utxoSweeping && utxoConfirm === currency ? `Sweeping ${currency}…` : `Sweep ${currency} (with reserve fund)`}
+                {sweeping === currency ? `Sweeping ${currency}…` : `Sweep ${currency}`}
               </button>
             )
           ))}
@@ -229,24 +201,22 @@ export default function AdminSuperDashboard() {
       <Section title="Reserve fund history">
         {logsLoading ? (
           <div style={{ color: '#6c757d', fontSize: 13 }}>Loading…</div>
-        ) : logs.length === 0 ? (
+        ) : reserveLogs.length === 0 ? (
           <div style={{ color: '#6c757d', fontSize: 13 }}>No sweeps yet.</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="admin-table">
               <thead>
-                <tr>
-                  <th>Date</th><th>Currency</th><th>%</th><th>Main</th><th>Reserve fund</th><th>By</th>
-                </tr>
+                <tr><th>Date</th><th>Type</th><th>Currency</th><th>Reserve</th><th>Tx</th><th>By</th></tr>
               </thead>
               <tbody>
-                {logs.map(l => (
+                {reserveLogs.map(l => (
                   <tr key={l.id}>
                     <td style={{ fontSize: 12 }}>{fmtDate(l.createdAt)}</td>
+                    <td style={{ fontSize: 12 }}>{l.kind === 'legacy' ? `Split sweep (${Number(l.commissionPct)}%)` : 'Commission sweep'}</td>
                     <td>{l.currency}</td>
-                    <td>{Number(l.commissionPct)}%</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{Number(l.mainAmount)}</td>
                     <td style={{ fontFamily: 'monospace', fontSize: 12, color: '#e65100' }}>{Number(l.commissionAmount)}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#6c757d' }}>{l.commissionTxHash ? `${l.commissionTxHash.slice(0, 12)}…` : '—'}</td>
                     <td>{l.triggeredByUser?.username || '—'}</td>
                   </tr>
                 ))}

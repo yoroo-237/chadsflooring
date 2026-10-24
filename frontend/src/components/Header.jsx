@@ -116,7 +116,7 @@ function calcTimeUntilDeadline(deadlineH, deadlineM) {
 }
 
 export default function Header({ onCartOpen }) {
-  const { cartItems, search, setSearch, balance, settings, logout, user } = useApp();
+  const { cartItems, search, setSearch, balance, holdings, settings, logout, user } = useApp();
   const cartCount = cartItems.length;
   const deadlineH = settings?.shipping_deadline_h ?? 22;
   const deadlineM = settings?.shipping_deadline_m ?? 39;
@@ -283,11 +283,13 @@ export default function Header({ onCartOpen }) {
           <div
             className="search-balance-chip"
             onClick={() => navigate('/wallet')}
-            title="Open Wallet"
+            title={holdings.length
+              ? `Live value of ${holdings.map(h => `${h.amount} ${h.currency}`).join(' + ')} — open Wallet`
+              : 'Open Wallet'}
           >
             <LtcIcon />
             <span className="search-balance-amount">${balance.toFixed(2)}</span>
-            <span className="search-balance-change">+0.026%</span>
+            <span className="search-balance-change">LIVE</span>
           </div>
         </div>
 

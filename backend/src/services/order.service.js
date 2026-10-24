@@ -2,8 +2,10 @@ const prisma = require('../db');
 const { calculateShipping } = require('./shipping.service');
 const { formatOrderId, formatTxnId } = require('../utils/formatters');
 const { parsePaginationParams, buildPagination } = require('../utils/pagination');
+const balanceService = require('./balance.service');
+const { getCachedUsdPrices } = require('./price.service');
 
-async function placeOrder(userId, { items }) {
+async function placeOrder(userId, { items, payCurrency }) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || !user.isActive) {
     throw Object.assign(new Error('User not found.'), { status: 404 });
@@ -56,9 +58,14 @@ async function placeOrder(userId, { items }) {
   const total = parseFloat((usdSubtotal + shippingCost).toFixed(2));
   const pointsCost = Math.round(pointsSubtotal);
 
-  if (parseFloat(user.balance) < total) {
-    throw Object.assign(new Error('Insufficient balance.'), { status: 422 });
+  // Freeze the conversion now: these prices and quantities are what the order costs
+  // in crypto, whatever the market does afterwards.
+  const holdings = await balanceService.getHoldings(userId);
+  const prices = await getCachedUsdPrices(holdings.map(h => h.currency));
+  if (total > 0 && holdings.length && !holdings.some(h => prices[h.currency])) {
+    throw Object.assign(new Error('Live prices are unavailable right now — please try again in a minute.'), { status: 503 });
   }
+  const payments = total > 0 ? balanceService.allocateUsd(holdings, prices, total, payCurrency) : [];
   if (pointsCost > 0 && user.points < pointsCost) {
     throw Object.assign(new Error('Insufficient points.'), { status: 422 });
   }
@@ -77,6 +84,8 @@ async function placeOrder(userId, { items }) {
         shippingCost,
         totalAmount: total,
         pointsEarned,
+        payments,
+        paymentMethod: payments.map(p => p.currency).join('+') || null,
       },
     });
 
@@ -104,7 +113,10 @@ async function placeOrder(userId, { items }) {
       });
     }
 
-    // 4 & 5. Debit balance, adjust points, update totalSpent
+    // 4. Debit the crypto holdings at the frozen rates
+    for (const p of payments) await balanceService.debit(tx, userId, p.currency, p.amount);
+
+    // 5. Adjust points, update totalSpent
     const userNow = await tx.user.findUnique({
       where:  { id: userId },
       select: { points: true },
@@ -114,35 +126,35 @@ async function placeOrder(userId, { items }) {
     await tx.user.update({
       where: { id: userId },
       data: {
-        balance:    { decrement: total },
         points:     newPoints,
         totalSpent: { increment: usdSubtotal },
       },
     });
 
-    // 6. Create Transaction
-    await tx.transaction.create({
-      data: {
-        frontendId: formatTxnId(Date.now()),
-        userId,
-        orderId:    order.id,
-        type:       'purchase',
-        amount:     -total,
-        currency:   'USD',
-        status:     'confirmed',
-        note:       `Order ${order.frontendId}`,
-      },
-    });
+    // 6. One transaction per currency debited
+    const now = Date.now();
+    for (const [i, p] of payments.entries()) {
+      await tx.transaction.create({
+        data: {
+          frontendId:   formatTxnId(payments.length > 1 ? `${now}-${i + 1}` : now),
+          userId,
+          orderId:      order.id,
+          type:         'purchase',
+          amount:       -p.usd,
+          currency:     p.currency,
+          cryptoAmount: -p.amount,
+          rate:         p.rate,
+          status:       'confirmed',
+          note:         `Order ${order.frontendId} — ${p.amount} ${p.currency} @ $${p.rate}`,
+        },
+      });
+    }
 
-    const updatedUser = await tx.user.findUnique({
-      where:  { id: userId },
-      select: { balance: true },
-    });
-
-    return { order, newBalance: parseFloat(updatedUser.balance), pointsEarned };
+    return { order, pointsEarned };
   });
 
-  return result;
+  const { balance } = await balanceService.getUserBalance(userId);
+  return { ...result, payments, newBalance: balance };
 }
 
 async function getUserOrders(userId, { page = 1, limit = 20, status } = {}) {
@@ -186,6 +198,23 @@ async function cancelOrder(orderId, userId, isAdmin = false) {
     .filter(i => i.priceType === 'points')
     .reduce((sum, i) => sum + parseFloat(i.lineTotal), 0);
 
+  // Orders paid before balances became crypto have no `payments`: refund their USD
+  // total in the customer's main currency (BTC if they hold none) at today's price.
+  let payments = Array.isArray(order.payments) ? order.payments : [];
+  const usdTotal = parseFloat(order.totalAmount);
+  if (!payments.length && usdTotal > 0) {
+    const holdings = await balanceService.getHoldings(order.userId);
+    const prices = await getCachedUsdPrices([...holdings.map(h => h.currency), 'BTC']);
+    const main = holdings
+      .filter(h => prices[h.currency])
+      .sort((a, b) => b.amount * prices[b.currency] - a.amount * prices[a.currency])[0];
+    const currency = main?.currency || 'BTC';
+    if (!prices[currency]) {
+      throw Object.assign(new Error('Live prices are unavailable right now — try the refund again in a minute.'), { status: 503 });
+    }
+    payments = [{ currency, amount: balanceService.round8(usdTotal / prices[currency]), rate: prices[currency], usd: usdTotal }];
+  }
+
   await prisma.$transaction(async tx => {
     // Restore stock
     for (const item of order.items) {
@@ -197,28 +226,32 @@ async function cancelOrder(orderId, userId, isAdmin = false) {
       }
     }
 
-    // Refund balance and points
-    await tx.user.update({
-      where: { id: order.userId },
-      data: {
-        balance: { increment: parseFloat(order.totalAmount) },
-        ...(pointsToRefund > 0 ? { points: { increment: Math.round(pointsToRefund) } } : {}),
-      },
-    });
+    // Refund the exact crypto quantities debited at checkout
+    const now = Date.now();
+    for (const [i, p] of payments.entries()) {
+      await balanceService.credit(tx, order.userId, p.currency, p.amount);
+      await tx.transaction.create({
+        data: {
+          frontendId:   formatTxnId(payments.length > 1 ? `${now}-${i + 1}` : now),
+          userId:       order.userId,
+          orderId:      order.id,
+          type:         'refund',
+          amount:       p.usd,
+          currency:     p.currency,
+          cryptoAmount: p.amount,
+          rate:         p.rate,
+          status:       'confirmed',
+          note:         `Refund for Order ${order.frontendId} — ${p.amount} ${p.currency}`,
+        },
+      });
+    }
 
-    // Refund transaction
-    await tx.transaction.create({
-      data: {
-        frontendId: formatTxnId(Date.now()),
-        userId:     order.userId,
-        orderId:    order.id,
-        type:       'refund',
-        amount:     parseFloat(order.totalAmount),
-        currency:   'USD',
-        status:     'confirmed',
-        note:       `Refund for Order ${order.frontendId}`,
-      },
-    });
+    if (pointsToRefund > 0) {
+      await tx.user.update({
+        where: { id: order.userId },
+        data:  { points: { increment: Math.round(pointsToRefund) } },
+      });
+    }
 
     await tx.order.update({
       where: { id: order.id },
@@ -226,7 +259,7 @@ async function cancelOrder(orderId, userId, isAdmin = false) {
     });
   });
 
-  return { cancelled: true, refundAmount: parseFloat(order.totalAmount) };
+  return { cancelled: true, refundAmount: parseFloat(order.totalAmount), refunded: payments };
 }
 
 module.exports = { placeOrder, getUserOrders, getOrderById, cancelOrder };

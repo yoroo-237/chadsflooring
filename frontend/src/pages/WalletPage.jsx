@@ -19,8 +19,8 @@ const DEPOSIT_GUIDE = {
     steps: [
       'Copy the Bitcoin address above or scan the QR code with your wallet app.',
       'Send any amount of BTC to this address — one transaction only.',
-      'After 1 blockchain confirmation (usually 10–60 minutes), your USD balance is credited automatically.',
-      'The exchange rate used is the rate at the moment your transaction confirms.',
+      'After 1 blockchain confirmation (usually 10–60 minutes), the BTC you sent (minus the deposit fee) is added to your balance automatically.',
+      'Your balance keeps the BTC itself — its USD value follows the live market price until you spend it.',
     ],
     warning: 'Send only Bitcoin (BTC) to this address. Do not reuse it — each address is single-use.',
   },
@@ -31,7 +31,7 @@ const DEPOSIT_GUIDE = {
       'Copy the Litecoin address above or scan the QR code.',
       'Send any amount of LTC from your wallet — one transaction only.',
       'After 1 confirmation on the Litecoin network (usually 5–30 min), your balance updates automatically.',
-      'The USD value is calculated at the exchange rate when the transaction confirms.',
+      'Your balance holds the LTC itself; its USD value follows the live market price.',
     ],
     warning: 'Send only Litecoin (LTC) to this address. One transaction only — do not reuse.',
   },
@@ -41,8 +41,8 @@ const DEPOSIT_GUIDE = {
     steps: [
       'Copy the Dogecoin address above or scan the QR code.',
       'Send any amount of DOGE — one transaction only.',
-      'After 1 confirmation (usually 5–15 min), your USD credit is applied automatically.',
-      'The USD value is based on the exchange rate at confirmation time.',
+      'After 1 confirmation (usually 5–15 min), your DOGE (minus the deposit fee) is credited automatically.',
+      'Your balance holds the DOGE itself; its USD value follows the live market price.',
     ],
     warning: 'Send only Dogecoin (DOGE) to this address. One transaction only — do not reuse.',
   },
@@ -53,7 +53,7 @@ const DEPOSIT_GUIDE = {
       'Copy the Ethereum address above or scan the QR code.',
       'Send any amount of ETH — one transaction only.',
       'After 1 network confirmation (usually 1–5 minutes), your balance is updated automatically.',
-      'The USD value is based on the ETH/USD rate at the moment of confirmation.',
+      'Your balance holds the ETH itself; its USD value follows the live market price.',
     ],
     warning: 'Send only ETH to this address — not ERC-20 tokens. One transaction only.',
   },
@@ -122,9 +122,9 @@ const TABS = ['Credit Deposits', 'Credit History', 'Legacy Credit History'];
 const DEPOSIT_TERMS = [
   'You agree you are at least 21 years of age and do not conduct business with under age minors.',
   'Send any amount to the address displayed on the next page.',
-  'The amount received will be credited to your account based on the exchange rate at the time it confirms on the blockchain.',
-  'The deposit is credited to your account at that time in USD.',
-  'Meaning, if you send $50 in Bitcoin, at the time it confirms, you will receive $50 in store credit.',
+  'Once it confirms on the blockchain, the crypto received is credited to your account minus the deposit fee shown below.',
+  'Your balance is held in that crypto: its USD value follows the live market price and can go up or down until you spend it.',
+  'At checkout, the order total is converted at the live price at that moment and that exact amount of crypto is deducted.',
   'If no transaction is received after 12 hours, this deposit will be cancelled.',
   'Do not reuse the deposit addresses, the system will not detect it. Send only ONE TRANSACTION to the address.',
   'Additional deposits will be permanently lost with no ability to recover.',
@@ -142,7 +142,7 @@ function formatCountdown(expiresAt) {
 }
 
 export default function WalletPage() {
-  const { balance, setBalance, deposits, setDeposits, transactions, setTransactions, showToast } = useApp();
+  const { balance, holdings, depositFeePct, refreshBalance, setBalance, deposits, setDeposits, transactions, setTransactions, showToast } = useApp();
   const [selectedCurrency, setSelectedCurrency] = useState('DOGE');
   const [activeTab, setActiveTab]   = useState(0);
   const [copied, setCopied]         = useState(false);
@@ -155,10 +155,10 @@ export default function WalletPage() {
   const pollingRef = useRef(null);
 
   useEffect(() => {
-    api.get('/wallet/balance').then(d => { if (d?.balance != null) setBalance(Number(d.balance)); }).catch(() => {});
+    refreshBalance();
     api.get('/wallet/deposits').then(d => setDeposits(d.deposits || d || [])).catch(() => {});
     api.get('/wallet/transactions').then(d => setTransactions(d.transactions || d || [])).catch(() => {});
-  }, [setBalance, setDeposits, setTransactions]);
+  }, [refreshBalance, setDeposits, setTransactions]);
 
   // Countdown timer for Step 2 modal
   useEffect(() => {
@@ -178,6 +178,7 @@ export default function WalletPage() {
         const result = await api.post(`/wallet/deposits/${currentDeposit.id}/check`);
         if (result.status === 'confirmed') {
           if (result.newBalance != null) setBalance(result.newBalance);
+          refreshBalance();
           api.get('/wallet/deposits').then(d => setDeposits(d.deposits || d || [])).catch(() => {});
           showToast('Deposit confirmed! Your balance has been updated.', 'success');
           clearInterval(pollingRef.current);
@@ -260,6 +261,22 @@ export default function WalletPage() {
                 </div>
                 <h2 className="credits-balance-amount">${Number(balance).toFixed(2)}</h2>
               </div>
+              {holdings.length > 0 ? (
+                <ul className="credits-holdings">
+                  {holdings.map(h => (
+                    <li key={h.currency} className="credits-holding-row">
+                      <span className="credits-holding-coin">{React.createElement(STATUS_ICONS[h.currency] || (() => null))} {h.amount} {h.currency}</span>
+                      <span className="credits-holding-usd">
+                        {h.usd != null ? `$${h.usd.toFixed(2)}` : 'price unavailable'}
+                        {h.price != null && <small> @ ${Number(h.price).toLocaleString('en-US', { maximumFractionDigits: h.price < 1 ? 4 : 2 })}</small>}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="credits-holdings-empty">Add funds to start shopping.</p>
+              )}
+              <p className="credits-live-note">Live value · updates every 30s with the market price</p>
             </div>
 
             {/* Load Credits card */}
@@ -270,7 +287,10 @@ export default function WalletPage() {
               </div>
 
               <p className="credits-load-subtitle">
-                The deposit is credited to your account based on the exchange rate at the time in USD.
+                Your balance holds the crypto you send and its USD value follows the live market price.
+                {depositFeePct != null && depositFeePct > 0 && (
+                  <> A <strong>{depositFeePct}% deposit fee</strong> is deducted from each deposit when it confirms.</>
+                )}
               </p>
 
               <div className="credits-currency-list">
@@ -422,6 +442,15 @@ export default function WalletPage() {
             <ol className="deposit-terms">
               {DEPOSIT_TERMS.map((t, i) => <li key={i}>{i + 1}. {t}</li>)}
             </ol>
+
+            {depositFeePct != null && (
+              <div className="deposit-fee-box">
+                <strong>Deposit fee: {depositFeePct}%</strong>
+                <span>
+                  Example: send 1.00 {selectedCurrency} → {(1 - depositFeePct / 100).toFixed(4).replace(/0+$/, '').replace(/\.$/, '')} {selectedCurrency} is added to your balance.
+                </span>
+              </div>
+            )}
 
             <label className="deposit-agree">
               <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} />

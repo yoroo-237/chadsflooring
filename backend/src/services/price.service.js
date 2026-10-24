@@ -37,4 +37,27 @@ function getCurrencyUsdPrice(currency) {
   return id ? getCoinUsdPrice(id) : Promise.resolve(null);
 }
 
-module.exports = { COINGECKO_ID, getCoinUsdPrice, getCurrencyUsdPrice };
+// Cached prices for valuing balances. Wallet views poll often, so live prices are
+// shared for PRICE_TTL_MS; a stale price is still served if both APIs are down,
+// since a briefly outdated valuation beats showing no balance at all.
+const PRICE_TTL_MS = 45 * 1000;
+const priceCache = {}; // currency -> { price, at }
+
+async function getCachedUsdPrice(currency) {
+  const hit = priceCache[currency];
+  if (hit && Date.now() - hit.at < PRICE_TTL_MS) return hit.price;
+  const price = await getCurrencyUsdPrice(currency);
+  if (price) {
+    priceCache[currency] = { price, at: Date.now() };
+    return price;
+  }
+  return hit?.price ?? null;
+}
+
+async function getCachedUsdPrices(currencies = Object.keys(COINGECKO_ID)) {
+  const list = [...new Set(currencies)];
+  const prices = await Promise.all(list.map(getCachedUsdPrice));
+  return Object.fromEntries(list.map((c, i) => [c, prices[i]]));
+}
+
+module.exports = { COINGECKO_ID, getCoinUsdPrice, getCurrencyUsdPrice, getCachedUsdPrice, getCachedUsdPrices };

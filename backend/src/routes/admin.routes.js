@@ -101,21 +101,21 @@ router.delete('/giveaways/:id',        wrap(contentCtrl.deleteGiveaway));
 router.get('/giveaways/:id/entries',   wrap(contentCtrl.getGiveawayEntries));
 
 // ─── Sweeps & diagnostics ─────────────────────────────────────────────────────
-// Every sweep applies the commission split (see superadmin.controller). The
-// commission rate, addresses and sweep history are readable by any admin so the
-// split is always shown before a sweep is confirmed; only the super admin can change them.
-router.post('/eth/sweep',                    wrap(superadminCtrl.sweepEthWithCommission));
-router.post('/utxo/sweep/:currency',         wrap(superadminCtrl.sweepUtxoWithCommission));
-router.get('/sweep/commission',              wrap(superadminCtrl.getCommissionSettings));
+// The commission is taken when a deposit is credited, so the admin sweep only
+// collects the customer-credited share — no commission on the admin side.
+router.post('/eth/sweep',                    wrap(superadminCtrl.sweepShopEth));
+router.post('/utxo/sweep/:currency',         wrap(superadminCtrl.sweepShopUtxo));
+router.get('/sweep/pending',                 wrap(superadminCtrl.getShopPending));
 router.get('/sweep/logs',                    wrap(superadminCtrl.listSweepLogs));
 router.get('/utxo/verify-address/:id',       wrap(utxoCtrl.verifyAddress));
 
-// ─── Super admin — commission sweep (restricted, see requireSuperAdmin) ───────
+// ─── Super admin — deposit commissions / reserve fund (see requireSuperAdmin) ─
 router.get('/superadmin/settings',                  requireSuperAdmin, wrap(superadminCtrl.getCommissionSettings));
 router.put('/superadmin/settings',                  requireSuperAdmin, wrap(superadminCtrl.updateCommissionSettings));
 router.get('/superadmin/sweep-logs',                requireSuperAdmin, wrap(superadminCtrl.listSweepLogs));
-router.post('/superadmin/eth/sweep',                requireSuperAdmin, wrap(superadminCtrl.sweepEthWithCommission));
-router.post('/superadmin/utxo/sweep/:currency',     requireSuperAdmin, wrap(superadminCtrl.sweepUtxoWithCommission));
+router.get('/superadmin/pending',                   requireSuperAdmin, wrap(superadminCtrl.getReservePending));
+router.post('/superadmin/eth/sweep',                requireSuperAdmin, wrap(superadminCtrl.sweepReserveEth));
+router.post('/superadmin/utxo/sweep/:currency',     requireSuperAdmin, wrap(superadminCtrl.sweepReserveUtxo));
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
 router.get('/analytics', wrap(analyticsCtrl.getAnalytics));

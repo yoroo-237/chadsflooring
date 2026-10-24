@@ -1,3 +1,4 @@
+const { getUserBalance } = require('../services/balance.service');
 const jwt = require('jsonwebtoken');
 const prisma = require('../db');
 const { success, error } = require('../utils/apiResponse');
@@ -79,7 +80,7 @@ async function login(req, res) {
       id:       user.id,
       username: user.username,
       role:     user.role,
-      balance:  user.balance,
+      balance:  (await getUserBalance(user.id)).balance,
       points:   user.points,
     },
     token: accessToken,

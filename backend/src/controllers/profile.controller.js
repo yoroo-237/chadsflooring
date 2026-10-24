@@ -1,5 +1,6 @@
 const prisma = require('../db');
 const { success, error } = require('../utils/apiResponse');
+const { getUserBalance } = require('../services/balance.service');
 const { comparePassword, hashPassword, validatePasswordStrength } = require('../services/auth.service');
 
 const TIERS = [
@@ -32,7 +33,7 @@ async function getProfile(req, res) {
     avatarUrl:        user.avatarUrl,
     bio:              user.bio,
     role:             user.role,
-    balance:          parseFloat(user.balance),
+    balance:          (await getUserBalance(user.id)).balance,
     points:           user.points,
     totalSpent:       parseFloat(user.totalSpent),
     tier:             resolveTier(user.totalSpent),

@@ -2982,3 +2982,15 @@ textarea:focus-visible {
   .order-card-header > div:last-child { flex-wrap: wrap; }
   .order-items-preview { flex-wrap: wrap; }
 }
+/* ── Live crypto holdings (wallet) ─────────────────────────────────────────── */
+.credits-holdings { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.credits-holding-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--bg-secondary, rgba(0,0,0,.04)); }
+.credits-holding-coin { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.credits-holding-usd { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.credits-holding-usd small { font-weight: 400; opacity: .6; margin-left: 4px; }
+.credits-holdings-empty { margin: 10px 0 0; font-size: 13px; opacity: .7; }
+.credits-live-note { margin: 10px 0 0; font-size: 11px; opacity: .55; }
+.deposit-fee-box { display: flex; flex-direction: column; gap: 2px; margin: 12px 0; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(1,113,227,.25); background: rgba(1,113,227,.06); font-size: 13px; }
+.checkout-pay-with { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; font-size: 13px; }
+.checkout-pay-with select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-color, #ddd); background: transparent; color: inherit; }
+.checkout-rate-note { font-size: 12px; opacity: .65; }

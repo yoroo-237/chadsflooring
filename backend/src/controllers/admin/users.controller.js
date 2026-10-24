@@ -3,6 +3,8 @@ const { success, error } = require('../../utils/apiResponse');
 const { parsePaginationParams, buildPagination } = require('../../utils/pagination');
 const { formatTxnId } = require('../../utils/formatters');
 const { hashPassword } = require('../../services/auth.service');
+const balanceService = require('../../services/balance.service');
+const { getCachedUsdPrice } = require('../../services/price.service');
 
 const TIERS = [
   { name: 'basic',     minSpent: 0    },
@@ -44,7 +46,8 @@ async function listUsers(req, res, next) {
       if (range) where.totalSpent = range;
     }
 
-    const ALLOWED_SORT = ['id', 'balance', 'totalSpent', 'points', 'createdAt', 'lastLoginAt'];
+    // Balances are live crypto valuations, so they can't be sorted in the database.
+    const ALLOWED_SORT = ['id', 'totalSpent', 'points', 'createdAt', 'lastLoginAt'];
     const orderField = ALLOWED_SORT.includes(sortBy) ? sortBy : 'id';
     const orderDir   = sortOrder === 'desc' ? 'desc' : 'asc';
     const skip       = (page - 1) * limit;
@@ -58,17 +61,19 @@ async function listUsers(req, res, next) {
         take: limit,
         select: {
           id: true, username: true, role: true,
-          isActive: true, balance: true, points: true, totalSpent: true,
+          isActive: true, points: true, totalSpent: true,
           markupPct: true, createdAt: true, lastLoginAt: true, avatarUrl: true,
           _count: { select: { orders: true } },
         },
       }),
     ]);
 
+    const balances = await balanceService.getBalancesForUsers(users.map(u => u.id));
+
     return success(res, {
       users: users.map(u => ({
         ...u,
-        balance:    parseFloat(u.balance),
+        balance:    balances[u.id] || 0,
         totalSpent: parseFloat(u.totalSpent),
         markupPct:  parseFloat(u.markupPct),
         tier:       getTier(u.totalSpent),
@@ -87,7 +92,7 @@ async function getUserById(req, res, next) {
     where: { id },
     select: {
       id: true, username: true, role: true,
-      isActive: true, balance: true, points: true, totalSpent: true,
+      isActive: true, points: true, totalSpent: true,
       markupPct: true, createdAt: true, lastLoginAt: true, avatarUrl: true,
       bio: true, telegramHandle: true, signalDetails: true, sessionDetails: true,
       btcRefundAddress: true, xmrRefundAddress: true, hidePrices: true,
@@ -135,9 +140,12 @@ async function getUserById(req, res, next) {
     }),
   ]);
 
+  const wallet = await balanceService.getUserBalance(id);
+
   return success(res, {
     ...user,
-    balance:    parseFloat(user.balance),
+    balance:    wallet.balance,
+    holdings:   wallet.holdings,
     totalSpent: parseFloat(user.totalSpent),
     markupPct:  parseFloat(user.markupPct),
     tier:       getTier(user.totalSpent),
@@ -202,52 +210,61 @@ async function banUser(req, res, next) {
   } catch (e) { next(e); }
 }
 
+// Credits or debits a customer's crypto holding. The amount is given in crypto
+// (`amount`) or in USD (`usdAmount`, converted at the current price).
 async function adjustWallet(req, res, next) {
   try {
   const id = parseInt(req.params.id);
-  const { type, amount, reason } = req.body;
+  const { type, reason } = req.body;
+  const currency = String(req.body.currency || '').toUpperCase();
 
   if (!['credit', 'debit'].includes(type)) {
     return error(res, 'type must be "credit" or "debit".', 400);
   }
+  if (!balanceService.CURRENCIES.includes(currency)) {
+    return error(res, `currency must be one of ${balanceService.CURRENCIES.join(', ')}.`, 400);
+  }
   if (!reason?.trim()) {
     return error(res, 'reason is required.', 400);
   }
-  const amt = parseFloat(amount);
-  if (!amt || amt <= 0) {
+
+  const price = await getCachedUsdPrice(currency);
+  let amt = parseFloat(req.body.amount);
+  if (!(amt > 0) && parseFloat(req.body.usdAmount) > 0) {
+    if (!price) return error(res, `${currency} price unavailable — enter the amount in ${currency}.`, 503);
+    amt = parseFloat(req.body.usdAmount) / price;
+  }
+  amt = balanceService.round8(amt);
+  if (!(amt > 0)) {
     return error(res, 'amount must be a positive number.', 400);
   }
 
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) return error(res, 'User not found.', 404);
 
-  if (type === 'debit' && parseFloat(user.balance) < amt) {
-    return res.status(422).json({ success: false, error: 'Insufficient balance.' });
-  }
+  const usd = price ? balanceService.round2(amt * price) : 0;
 
-  const result = await prisma.$transaction(async tx => {
-    const updated = await tx.user.update({
-      where: { id },
-      data:  { balance: type === 'credit' ? { increment: amt } : { decrement: amt } },
-      select: { balance: true },
-    });
+  const txn = await prisma.$transaction(async tx => {
+    if (type === 'credit') await balanceService.credit(tx, id, currency, amt);
+    else await balanceService.debit(tx, id, currency, amt);
 
-    const txn = await tx.transaction.create({
+    return tx.transaction.create({
       data: {
-        frontendId: formatTxnId(Date.now()),
-        userId:     id,
-        type:       'adjustment',
-        amount:     type === 'credit' ? amt : -amt,
-        currency:   'USD',
-        status:     'confirmed',
-        note:       reason.trim(),
+        frontendId:   formatTxnId(Date.now()),
+        userId:       id,
+        type:         'adjustment',
+        amount:       type === 'credit' ? usd : -usd,
+        currency,
+        cryptoAmount: type === 'credit' ? amt : -amt,
+        rate:         price || null,
+        status:       'confirmed',
+        note:         reason.trim(),
       },
     });
-
-    return { newBalance: parseFloat(updated.balance), transaction: txn };
   });
 
-  return success(res, result);
+  const wallet = await balanceService.getUserBalance(id);
+  return success(res, { newBalance: wallet.balance, holdings: wallet.holdings, transaction: txn });
   } catch (e) { next(e); }
 }
 

@@ -99,7 +99,7 @@ export default function AdminDeposits() {
 
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState(null); // { id, currency }
-  const [confirmForm, setConfirmForm]   = useState({ usdAmount: '', note: '' });
+  const [confirmForm, setConfirmForm]   = useState({ amount: '', note: '' });
   const [confirming, setConfirming]     = useState(false);
   const [confirmErr, setConfirmErr]     = useState(null);
 
@@ -146,7 +146,7 @@ export default function AdminDeposits() {
     try {
       await adminFetch(`/admin/deposits/${confirmModal.id}/confirm`, {
         method: 'PATCH',
-        body: { usdAmount: parseFloat(confirmForm.usdAmount), note: confirmForm.note || undefined },
+        body: { amount: parseFloat(confirmForm.amount), note: confirmForm.note || undefined },
       });
       setConfirmModal(null);
       load();
@@ -214,7 +214,7 @@ export default function AdminDeposits() {
   };
 
   const openConfirm = d => {
-    setConfirmForm({ usdAmount: '', note: '' });
+    setConfirmForm({ amount: '', note: '' });
     setConfirmErr(null);
     setConfirmModal({ id: d.id, currency: d.currency });
   };
@@ -270,7 +270,7 @@ export default function AdminDeposits() {
           <div style={{ fontWeight: 700, fontSize: 12, color: '#e65100', marginBottom: 4, display: 'flex', alignItems: 'center' }}><IconUser />Manual review required (XMR)</div>
           <div style={{ fontSize: 12, color: '#bf360c', lineHeight: 1.6 }}>
             All XMR deposits share a single address. The customer must open a support ticket with their TX Hash.
-            Verify the payment in your Monero wallet, then click <strong>Confirm</strong> on the deposit row and enter the USD amount to credit.
+            Verify the payment in your Monero wallet, then click <strong>Confirm</strong> on the deposit row and enter the XMR amount received.
           </div>
         </div>
       </div>
@@ -287,7 +287,7 @@ export default function AdminDeposits() {
               <th>Address</th>
               <th>Expected</th>
               <th>Received</th>
-              <th>USD Credited</th>
+              <th>Credited to customer</th>
               <th>Status</th>
               <th>Expires</th>
               <th>Created</th>
@@ -324,8 +324,13 @@ export default function AdminDeposits() {
                     <td style={{ fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap', color: d.amountReceived > 0 ? '#43a047' : '#6c757d' }}>
                       {fmtC(d.amountReceived)} {d.currency}
                     </td>
-                    <td style={{ fontWeight: 700, color: d.usdCredited > 0 ? '#43a047' : '#6c757d' }}>
-                      {d.usdCredited > 0 ? fmt(d.usdCredited) : '—'}
+                    <td style={{ fontWeight: 700, color: d.netAmount > 0 || d.usdCredited > 0 ? '#43a047' : '#6c757d' }}>
+                      {d.netAmount > 0
+                        ? <>
+                            <div style={{ fontFamily: 'monospace', fontSize: 12 }}>{fmtC(d.netAmount)} {d.currency}</div>
+                            <div style={{ fontSize: 11, fontWeight: 400, color: '#6c757d' }}>{fmt(d.usdCredited)} at deposit</div>
+                          </>
+                        : d.usdCredited > 0 ? fmt(d.usdCredited) : '—'}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -392,20 +397,20 @@ export default function AdminDeposits() {
               <div style={{ background: 'rgba(251,140,0,.1)', border: '1px solid rgba(251,140,0,.3)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: '#bf360c', lineHeight: 1.6 }}>
                 <strong>XMR manual confirmation checklist:</strong><br />
                 1. Open your Monero wallet and confirm you received a transaction from this customer.<br />
-                2. Convert the XMR amount to USD at today's rate (e.g. via CoinGecko).<br />
-                3. Enter the USD amount below and click Confirm — this credits the customer's balance.
+                2. Note the exact XMR amount received.<br />
+                3. Enter it below and click Confirm — the customer's balance is credited in XMR (net of the deposit fee).
               </div>
             )}
             <form onSubmit={doConfirm}>
               <div className="admin-form-group">
-                <label className="admin-label">USD Amount to Credit *</label>
+                <label className="admin-label">{confirmModal.currency} amount received *</label>
                 <input
                   className="admin-input"
                   type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={confirmForm.usdAmount}
-                  onChange={e => setConfirmForm(f => ({ ...f, usdAmount: e.target.value }))}
+                  min="0.00000001"
+                  step="0.00000001"
+                  value={confirmForm.amount}
+                  onChange={e => setConfirmForm(f => ({ ...f, amount: e.target.value }))}
                   required
                   autoFocus
                 />
