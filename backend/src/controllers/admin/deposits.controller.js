@@ -64,6 +64,19 @@ async function confirmDeposit(req, res, next) {
       return error(res, 'amount (crypto received) must be a positive number.', 400);
     }
 
+    // Guard against unit mix-ups (USD typed in the crypto field): a large USD value
+    // needs an explicit confirmLarge flag.
+    const LARGE_USD = 5000;
+    if (req.body.confirmLarge !== true) {
+      const d = await prisma.deposit.findUnique({ where: { id } });
+      const price = d ? await getCurrencyUsdPrice(d.currency) : null;
+      if (price && amt * price > LARGE_USD) {
+        return error(res,
+          `${amt} ${d.currency} is worth about $${(amt * price).toFixed(2)}. The amount field is in ${d.currency}, not USD. Check it before confirming.`,
+          422);
+      }
+    }
+
     const result = await confirmDepositManually(id, amt, req.user.id);
     return success(res, result);
   } catch (e) { next(e); }
