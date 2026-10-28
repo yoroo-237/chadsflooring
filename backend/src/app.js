@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 
 const errorHandler = require('./middlewares/errorHandler');
+const { maintenanceGuard } = require('./middlewares/maintenance');
 const authRoutes       = require('./routes/auth.routes');
 const productsRoutes   = require('./routes/products.routes');
 const categoriesRoutes = require('./routes/categories.routes');
@@ -69,6 +70,9 @@ app.use('/api/auth', rateLimit({
 app.get('/api/health', (req, res) => {
   res.json({ success: true, data: { status: 'ok' } });
 });
+
+// Maintenance mode (siteSetting maintenance_mode) — 503 for customers, admins bypass
+app.use('/api', maintenanceGuard);
 
 app.use('/api/auth',       authRoutes);
 app.use('/api/products',   productsRoutes);

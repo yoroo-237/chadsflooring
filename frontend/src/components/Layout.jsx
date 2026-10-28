@@ -42,6 +42,24 @@ export default function Layout() {
 
   const { search, setSearch } = useApp();
 
+  // Maintenance mode: close the storefront to customers (admins keep access)
+  const [maintenance, setMaintenance] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const check = () => api.get('/content/settings')
+      .then(d => { if (alive) setMaintenance(String(d.settings?.maintenance_mode) === 'true'); })
+      .catch(() => {});
+    check();
+    const iv = setInterval(check, 30000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+  const isAdminUser = (() => {
+    try {
+      const payload = JSON.parse(atob(localStorage.getItem('token').split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return payload.role === 'admin' || payload.role === 'superadmin';
+    } catch { return false; }
+  })();
+
   // When search is set from a non-shop page, navigate to shop
   useEffect(() => {
     if (search && location.pathname !== '/') {
@@ -59,6 +77,20 @@ export default function Layout() {
 
   const ACCOUNT_ROUTES = ['/profile', '/rewards', '/wallet', '/credits', '/orders', '/team', '/settings', '/support'];
   const isAccountPage = ACCOUNT_ROUTES.some(r => location.pathname.startsWith(r));
+
+  if (maintenance && !isAdminUser) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+        <div>
+          <div style={{ fontSize: 56, marginBottom: 12 }}>🛠</div>
+          <h1 style={{ fontSize: 24, marginBottom: 8 }}>Under maintenance</h1>
+          <p style={{ color: 'var(--text-muted, #6c757d)', maxWidth: 380 }}>
+            We're making some improvements. The store will be back shortly — thanks for your patience.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`app-layout${isAccountPage ? ' app-layout--account' : ''}`}>

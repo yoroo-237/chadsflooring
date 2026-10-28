@@ -2,12 +2,13 @@ const { Router } = require('express');
 const { requireAuth, requireAdmin, requireApiKey, optionalAuth } = require('../middlewares/auth');
 const validate = require('../middlewares/validate');
 const { createProductSchema, updateProductSchema, reviewSchema, stockSchema } = require('../validators/product.validator');
+const { requireServiceForQuery } = require('../middlewares/maintenance');
 const ctrl = require('../controllers/products.controller');
 
 const router = Router();
 
 // Public — optional auth to apply markupPct
-router.get('/',          optionalAuth, ctrl.list);
+router.get('/',          optionalAuth, requireServiceForQuery('Search', 'search', 'Search is temporarily unavailable.'), ctrl.list);
 router.get('/scrape',    requireApiKey, ctrl.scrape);
 router.get('/:id',       optionalAuth, ctrl.getOne);
 router.get('/:id/reviews', ctrl.listReviews);

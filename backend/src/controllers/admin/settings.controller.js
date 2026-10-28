@@ -1,5 +1,6 @@
 const prisma = require('../../db');
 const { success, error } = require('../../utils/apiResponse');
+const { resetMaintenanceCache } = require('../../middlewares/maintenance');
 
 // Settings prefixed "super_" hold superadmin-only data (commission sweep config) —
 // keep them out of the generic admin-facing settings API entirely.
@@ -26,6 +27,7 @@ async function updateSettings(req, res) {
       })
     )
   );
+  resetMaintenanceCache();
   return success(res, { updated: true });
 }
 
@@ -50,6 +52,7 @@ async function updateSystemStatus(req, res) {
   if (description !== undefined) data.description = description;
 
   const updated = await prisma.systemStatus.update({ where: { id }, data });
+  resetMaintenanceCache();
   return success(res, updated);
 }
 

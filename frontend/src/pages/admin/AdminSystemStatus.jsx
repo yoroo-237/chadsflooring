@@ -1,17 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { adminFetch } from './utils/api';
 
-const SERVICES = [
-  { key: 'api',           label: 'API',             description: 'REST API endpoints' },
-  { key: 'website',       label: 'Website',          description: 'Frontend storefront' },
-  { key: 'checkout',      label: 'Checkout',         description: 'Order placement & payment' },
-  { key: 'payments',      label: 'Payments',         description: 'Crypto deposit processing' },
-  { key: 'notifications', label: 'Notifications',    description: 'Email & push notifications' },
-  { key: 'database',      label: 'Database',         description: 'PostgreSQL primary DB' },
-  { key: 'cdn',           label: 'CDN / Storage',    description: 'Cloudinary / static assets' },
-  { key: 'email',         label: 'Email',            description: 'Transactional email delivery' },
-];
-
 const STATUS_OPTIONS = [
   { value: 'operational',         label: 'Operational',         color: '#43a047' },
   { value: 'degraded_performance', label: 'Degraded',           color: '#ff9800' },
@@ -45,7 +34,9 @@ function Toast({ toast }) {
 const EMPTY_INCIDENT = { dateLabel: '', title: '', status: 'investigating', description: '' };
 
 export default function AdminSystemStatus() {
-  const [components, setComponents] = useState({});
+  const [services, setServices]   = useState([]);
+  const [maintenance, setMaintenance] = useState(false);
+  const [mSaving, setMSaving]       = useState(false);
   const [incidents, setIncidents]   = useState([]);
   const [loading, setLoading]       = useState(true);
   const [err, setErr]               = useState(null);
@@ -64,24 +55,40 @@ export default function AdminSystemStatus() {
     Promise.all([
       adminFetch('/admin/system-status'),
       adminFetch('/admin/system-status/incidents').catch(() => ({ incidents: [] })),
-    ]).then(([s, inc]) => {
-      const st = s.systemStatus || s;
-      setComponents(st.components || {});
+      adminFetch('/admin/settings').catch(() => ({ settings: {} })),
+    ]).then(([s, inc, cfg]) => {
+      setServices(s.services || []);
       setIncidents(inc.incidents || inc || []);
+      setMaintenance(String((cfg.settings || cfg).maintenance_mode) === 'true');
       setLoading(false);
     }).catch(e => { setErr(e.message); setLoading(false); });
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const updateComponent = async (key, value) => {
-    setComponents(c => ({ ...c, [key]: value }));
+  const updateService = async (svc, status) => {
+    const previous = svc.status;
+    setServices(list => list.map(x => x.id === svc.id ? { ...x, status } : x));
     try {
-      await adminFetch('/admin/system-status', { method: 'PUT', body: { components: { ...components, [key]: value } } });
-      showToast(`${SERVICES.find(s => s.key === key)?.label} updated`);
+      await adminFetch(`/admin/system-status/${svc.id}`, { method: 'PUT', body: { status } });
+      showToast(`${svc.service} updated`);
+    } catch (e) {
+      setServices(list => list.map(x => x.id === svc.id ? { ...x, status: previous } : x));
+      showToast(e.message, 'error');
+    }
+  };
+
+  const toggleMaintenance = async () => {
+    const next = !maintenance;
+    setMSaving(true);
+    try {
+      await adminFetch('/admin/settings', { method: 'PUT', body: { maintenance_mode: next } });
+      setMaintenance(next);
+      showToast(next ? 'Maintenance mode ENABLED — store closed to customers' : 'Maintenance mode disabled — store is live');
     } catch (e) {
       showToast(e.message, 'error');
-      load();
+    } finally {
+      setMSaving(false);
     }
   };
 
@@ -89,9 +96,11 @@ export default function AdminSystemStatus() {
     e.preventDefault(); setIncSaving(true);
     try {
       if (incModal === 'create') {
-        await adminFetch('/admin/system-status/incidents', { method: 'POST', body: incForm });
+        const dateLabel = incForm.dateLabel.trim()
+          || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        await adminFetch('/admin/system-status/incidents', { method: 'POST', body: { ...incForm, dateLabel } });
       } else {
-        await adminFetch(`/admin/system-status/${incModal.id}`, { method: 'PUT', body: incForm });
+        await adminFetch(`/admin/system-status/incidents/${incModal.id}`, { method: 'PUT', body: incForm });
       }
       setIncModal(null);
       showToast(incModal === 'create' ? 'Incident created' : 'Incident updated');
@@ -102,7 +111,7 @@ export default function AdminSystemStatus() {
 
   const sf = (k, v) => setIncForm(f => ({ ...f, [k]: v }));
 
-  const overallOk = Object.values(components).every(v => v === 'operational' || !v);
+  const overallOk = !maintenance && services.every(x => x.status === 'operational');
 
   if (loading) return <div style={{ padding: 40, color: '#6c757d' }}>Loading…</div>;
 
@@ -114,7 +123,7 @@ export default function AdminSystemStatus() {
         <div>
           <h1 className="admin-page-title">System Status</h1>
           <p className="admin-page-subtitle" style={{ color: overallOk ? '#43a047' : '#e53935', fontWeight: 600 }}>
-            {overallOk ? '✓ All systems operational' : '⚠ Some systems need attention'}
+            {maintenance ? '🛠 Maintenance mode is ON' : overallOk ? '✓ All systems operational' : '⚠ Some systems need attention'}
           </p>
         </div>
         <button className="admin-btn admin-btn-primary" onClick={() => { setIncForm(EMPTY_INCIDENT); setIncModal('create'); }}>
@@ -123,6 +132,25 @@ export default function AdminSystemStatus() {
       </div>
 
       {err && <div style={{ color: '#e53935', marginBottom: 12 }}>{err}</div>}
+
+      {/* Maintenance switch */}
+      <div className="admin-card" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <div className="admin-card-title" style={{ marginBottom: 4 }}>Maintenance mode</div>
+          <div style={{ fontSize: 13, color: '#6c757d' }}>
+            {maintenance
+              ? 'The store is closed to customers. Admins keep full access.'
+              : 'Store is live. Enable to close it to customers while you work.'}
+          </div>
+        </div>
+        <button
+          className={`admin-btn ${maintenance ? 'admin-btn-success' : 'admin-btn-primary'}`}
+          onClick={toggleMaintenance}
+          disabled={mSaving}
+        >
+          {mSaving ? 'Saving…' : maintenance ? 'Disable maintenance' : 'Enable maintenance'}
+        </button>
+      </div>
 
       {/* Services table */}
       <div className="admin-card" style={{ marginBottom: 20 }}>
@@ -133,12 +161,11 @@ export default function AdminSystemStatus() {
               <tr><th>Service</th><th>Description</th><th>Status</th><th>Last Updated</th></tr>
             </thead>
             <tbody>
-              {SERVICES.map(svc => {
-                const val   = components[svc.key] || 'operational';
-                const label = STATUS_OPTIONS.find(o => o.value === val)?.label || val;
+              {services.map(svc => {
+                const val = svc.status || 'operational';
                 return (
-                  <tr key={svc.key}>
-                    <td style={{ fontWeight: 700 }}>{svc.label}</td>
+                  <tr key={svc.id}>
+                    <td style={{ fontWeight: 700 }}>{svc.service}</td>
                     <td style={{ color: '#6c757d', fontSize: 13 }}>{svc.description}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -146,14 +173,14 @@ export default function AdminSystemStatus() {
                         <select
                           className="admin-filter-select"
                           value={val}
-                          onChange={e => updateComponent(svc.key, e.target.value)}
+                          onChange={e => updateService(svc, e.target.value)}
                           style={{ fontSize: 13, padding: '5px 8px' }}
                         >
                           {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                       </div>
                     </td>
-                    <td style={{ fontSize: 12, color: '#6c757d' }}>just now</td>
+                    <td style={{ fontSize: 12, color: '#6c757d' }}>{svc.updatedAt ? new Date(svc.updatedAt).toLocaleString() : '—'}</td>
                   </tr>
                 );
               })}

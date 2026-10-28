@@ -29,7 +29,7 @@ const STATIC_SERVICES = [
 ];
 
 export default function SystemStatusPage() {
-  const [components, setComponents] = useState({});
+  const [apiServices, setApiServices] = useState([]);
   const [incidents, setIncidents]   = useState([]);
   const [loading, setLoading]       = useState(true);
   const [now, setNow]               = useState(new Date());
@@ -40,26 +40,17 @@ export default function SystemStatusPage() {
   }, []);
 
   useEffect(() => {
-    Promise.all([
-      api.get('/content/system-status').catch(() => null),
-      api.get('/content/system-status/incidents').catch(() => null),
-    ]).then(([statusData, incData]) => {
-      if (statusData) {
-        const st = statusData.systemStatus || statusData;
-        setComponents(st.components || {});
-      }
-      if (incData) {
-        setIncidents(incData.incidents || incData || []);
-      }
-    }).finally(() => setLoading(false));
+    api.get('/content/system-status')
+      .then(d => {
+        setApiServices(d.services || []);
+        setIncidents(d.incidents || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const services = Object.keys(components).length > 0
-    ? Object.entries(components).map(([key, status]) => ({
-        name: key.charAt(0).toUpperCase() + key.slice(1),
-        desc: '',
-        status,
-      }))
+  const services = apiServices.length > 0
+    ? apiServices.map(x => ({ name: x.service, desc: x.description, status: x.status }))
     : STATIC_SERVICES;
 
   const allOk = services.every(s => s.status === 'operational');

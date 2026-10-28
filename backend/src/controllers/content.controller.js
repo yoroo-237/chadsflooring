@@ -1,10 +1,11 @@
 const prisma = require('../db');
 const { success, error } = require('../utils/apiResponse');
 const { parsePaginationParams, buildPagination } = require('../utils/pagination');
+const { isStoreClosed } = require('../middlewares/maintenance');
 
 const PUBLIC_SETTINGS = [
   'shipping_cost', 'shipping_free_threshold', 'shipping_deadline_h',
-  'shipping_deadline_m', 'site_name', 'points_rate',
+  'shipping_deadline_m', 'site_name', 'points_rate', 'maintenance_mode',
 ];
 
 async function getNews(req, res) {
@@ -93,6 +94,8 @@ async function getSettings(req, res) {
     where: { key: { in: PUBLIC_SETTINGS } },
   });
   const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  // Website / API closed from the status panel counts as maintenance for customers
+  if (await isStoreClosed()) settings.maintenance_mode = 'true';
   return success(res, { settings });
 }
 
