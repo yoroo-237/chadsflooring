@@ -113,7 +113,7 @@ export function AppProvider({ children }) {
     showToast(`${product.name} added to cart`, 'success');
   }, [showToast]);
 
-  const placeOrder = useCallback(async ({ payCurrency } = {}) => {
+  const placeOrder = useCallback(async ({ payCurrency, telegram } = {}) => {
     const grouped = cartItems.reduce((acc, item) => {
       const id = item.id;
       if (!acc[id]) acc[id] = { productId: id, quantity: 0 };
@@ -121,7 +121,7 @@ export function AppProvider({ children }) {
       return acc;
     }, {});
     const items = Object.values(grouped);
-    const body = { items, ...(payCurrency ? { payCurrency } : {}) };
+    const body = { items, ...(payCurrency ? { payCurrency } : {}), ...(telegram ? { telegram } : {}) };
     const data = await api.post('/orders', body);
     const order = data.order || data;
     setOrders(prev => [order, ...prev]);
@@ -129,7 +129,8 @@ export function AppProvider({ children }) {
     if (data.newBalance != null) setBalance(Number(data.newBalance));
     api.get('/wallet').then(applyWallet).catch(() => {});
     showToast('Order placed successfully!', 'success');
-    return order;
+    // The paid invoice also went to the shop on Telegram; the confirmation shows it
+    return { ...order, invoice: data.invoice };
   }, [cartItems, showToast, applyWallet]);
 
   const refreshBalance = useCallback(async () => {

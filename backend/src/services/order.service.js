@@ -4,11 +4,19 @@ const { formatOrderId, formatTxnId } = require('../utils/formatters');
 const { parsePaginationParams, buildPagination } = require('../utils/pagination');
 const balanceService = require('./balance.service');
 const { getCachedUsdPrices } = require('./price.service');
+const { sendOrderInvoice } = require('./telegram.service');
 
-async function placeOrder(userId, { items, payCurrency }) {
+// No customer details are collected: the only contact is the Telegram
+// username/ID, optional, saved to the profile when given at checkout.
+async function placeOrder(userId, { items, payCurrency, telegram }) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || !user.isActive) {
     throw Object.assign(new Error('User not found.'), { status: 404 });
+  }
+  const handle = String(telegram || '').trim().replace(/^@/, '').slice(0, 64);
+  if (handle && !user.telegramHandle) {
+    await prisma.user.update({ where: { id: userId }, data: { telegramHandle: handle } });
+    user.telegramHandle = handle;
   }
 
   const markupPct = parseFloat(user.markupPct);
@@ -153,8 +161,19 @@ async function placeOrder(userId, { items, payCurrency }) {
     return { order, pointsEarned };
   });
 
-  const { balance } = await balanceService.getUserBalance(userId);
-  return { ...result, payments, newBalance: balance };
+  // Paid in the app, invoiced on Telegram (best-effort: never fails the order)
+  const [invoice, { balance }] = await Promise.all([
+    sendOrderInvoice({
+      orderNumber: result.order.frontendId,
+      lines:       enrichedItems.map(i => ({ name: i.product.name, quantity: i.quantity, total: i.lineTotal })),
+      shipping:    shippingCost,
+      total,
+      payments,
+      user,
+    }),
+    balanceService.getUserBalance(userId),
+  ]);
+  return { ...result, payments, newBalance: balance, invoice };
 }
 
 async function getUserOrders(userId, { page = 1, limit = 20, status } = {}) {

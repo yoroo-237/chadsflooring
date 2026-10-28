@@ -18,8 +18,11 @@ function CheckIcon() {
 }
 
 export default function CheckoutPage() {
-  const { cartItems, placeOrder, balance, holdings, settings } = useApp();
+  const { cartItems, placeOrder, balance, holdings, settings, user, setUser } = useApp();
   const [payCurrency, setPayCurrency] = useState('');
+  // The only thing ever asked: a Telegram username/ID, optional, when the profile has none
+  const [telegram, setTelegram] = useState('');
+  const askTelegram = !user?.telegramHandle;
   const navigate = useNavigate();
 
   const [placing, setPlacing] = useState(false);
@@ -46,7 +49,9 @@ export default function CheckoutPage() {
     if (!hasEnoughBalance) return;
     setPlacing(true); setServerErr('');
     try {
-      const order = await placeOrder({ payCurrency: payCurrency || undefined });
+      const tg = askTelegram ? telegram.trim().replace(/^@/, '') : '';
+      const order = await placeOrder({ payCurrency: payCurrency || undefined, telegram: tg || undefined });
+      if (tg) setUser(u => ({ ...u, telegramHandle: tg }));
       setPlaced(order);
     } catch (err) {
       setServerErr(err.message || 'Failed to place order. Please try again.');
@@ -78,9 +83,15 @@ export default function CheckoutPage() {
             <h1 className="order-success-title">Order Confirmed!</h1>
             <p className="order-success-sub">Order <strong>{placed.id || placed.orderId}</strong></p>
             <p className="order-success-desc">
-              Thank you for your purchase. Your order is being processed and you'll receive a confirmation shortly.
+              Your order is paid and being prepared. We’ll message you when it ships.
             </p>
+            {placed.invoice && (
+              <p className="order-success-desc">
+                {placed.invoice.delivered ? 'Your invoice has been sent to the shop on Telegram.' : 'Open Telegram to send your invoice to the shop.'}
+              </p>
+            )}
             <div className="order-success-actions">
+              {placed.invoice?.shopTelegramUrl && <a className="btn-primary tg-invoice-send" href={placed.invoice.shopTelegramUrl} target="_blank" rel="noreferrer">Open Telegram</a>}
               <Link to="/orders" className="btn-primary">View Orders</Link>
               <Link to="/" className="btn-secondary">Continue Shopping</Link>
             </div>
@@ -141,6 +152,14 @@ export default function CheckoutPage() {
               </p>
             </div>
 
+            {askTelegram && (
+              <div className="checkout-section">
+                <h3 className="checkout-section-title">Telegram <span style={{ fontWeight: 400, opacity: .6 }}>(optional)</span></h3>
+                <input className="checkout-tg-input" placeholder="@username or ID" autoComplete="off" value={telegram} onChange={e => setTelegram(e.target.value)} aria-label="Your Telegram username or ID" />
+                <p className="checkout-rate-note">Added to your invoice so the shop can reach you, and saved to your profile. We don’t ask for anything else.</p>
+              </div>
+            )}
+
             {!hasEnoughBalance && (
               <div className="checkout-balance-error">
                 Insufficient balance — {payHolding ? `your ${payCurrency}` : 'your wallet'} has ${available.toFixed(2)} but this order costs ${total.toFixed(2)}.{' '}
@@ -181,3 +200,4 @@ export default function CheckoutPage() {
     </main>
   );
 }
+

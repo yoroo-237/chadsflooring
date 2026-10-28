@@ -2994,3 +2994,10 @@ textarea:focus-visible {
 .checkout-pay-with { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; font-size: 13px; }
 .checkout-pay-with select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-color, #ddd); background: transparent; color: inherit; }
 .checkout-rate-note { font-size: 12px; opacity: .65; }
+
+/* Order confirmation */
+.tg-invoice-send { background: #229ed9 !important; border-color: #229ed9 !important; color: #fff !important; }
+.order-success-icon { animation: tg-pop .6s cubic-bezier(.2, .8, .2, 1); }
+@keyframes tg-pop { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.12); } }
+.checkout-tg-input { width: 100%; padding: 11px 14px; border-radius: 10px; border: 1px solid rgb(127 127 127 / .35); background: transparent; color: inherit; font: inherit; font-size: 16px; }
+.checkout-tg-input:focus { outline: none; border-color: currentColor; }
