@@ -12,8 +12,10 @@ async function main() {
   const [idArg, usdArg] = process.argv.slice(2);
   const apply = process.argv.includes('--apply');
   const id = parseInt(idArg);
+  const cryptoOpt = process.argv.find(a => a.startsWith('--crypto='));
+  const exactCrypto = cryptoOpt ? parseFloat(cryptoOpt.split('=')[1]) : null;
   const correctUsd = parseFloat(usdArg);
-  if (!id || !(correctUsd > 0)) throw new Error('Usage: fix-deposit-amount.js <depositId> <correctUsdReceived> [--apply]');
+  if (!id || !(correctUsd > 0 || exactCrypto > 0)) throw new Error('Usage: fix-deposit-amount.js <depositId> <correctUsdReceived|0> [--crypto=<amount received>] [--apply]');
 
   const dep = await prisma.deposit.findUnique({ where: { id } });
   if (!dep) throw new Error(`Deposit ${id} not found.`);
@@ -23,7 +25,8 @@ async function main() {
   if (!(rate > 0)) throw new Error('No rate stored on the transaction; cannot convert USD to crypto.');
 
   const pct = parseFloat(dep.commissionPct);
-  const gross = balanceService.round8(correctUsd / rate);
+  // --crypto= (the amount really seen on-chain) wins over the USD conversion.
+  const gross = balanceService.round8(exactCrypto > 0 ? exactCrypto : correctUsd / rate);
   const { commission, net } = balanceService.splitDeposit(gross, pct);
   const netUsd = balanceService.round2(net * rate);
   const oldNet = parseFloat(dep.netAmount);
@@ -55,7 +58,7 @@ async function main() {
       where: { id: dep.transactionId },
       data: {
         amount: netUsd, cryptoAmount: net,
-        note: `Deposit #${id} - corrected: ${gross} ${dep.currency} received (${correctUsd} USD), ${pct}% fee (${commission} ${dep.currency}). Entry error fixed.`,
+        note: `Deposit #${id} - corrected: ${gross} ${dep.currency} received,${pct}% fee (${commission} ${dep.currency}). Entry error fixed.`,
       },
     });
   });
