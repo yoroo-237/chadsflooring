@@ -36,6 +36,7 @@ export default function AdminSuperDashboard() {
   const [confirm, setConfirm]   = useState(null);  // currency awaiting confirmation
   const [sweeping, setSweeping] = useState(null);  // currency being swept
   const [result, setResult]     = useState(null);
+  const [sweepUsd, setSweepUsd] = useState('');    // amount to sweep in USD, '' = everything owed
 
   const loadSettings = () => {
     adminFetch('/admin/superadmin/settings')
@@ -79,7 +80,8 @@ export default function AdminSuperDashboard() {
     setSweeping(currency); setResult(null); setConfirm(null); setErr(null);
     try {
       const path = currency === 'ETH' ? '/admin/superadmin/eth/sweep' : `/admin/superadmin/utxo/sweep/${currency}`;
-      setResult(await adminFetch(path, { method: 'POST' }));
+      setResult(await adminFetch(path, { method: 'POST', body: sweepUsd ? { usd: Number(sweepUsd) } : {} }));
+      setSweepUsd('');
       loadActivity();
     } catch (e) { setErr(e.message); }
     finally { setSweeping(null); }
@@ -163,6 +165,7 @@ export default function AdminSuperDashboard() {
           <div style={{ marginBottom: 14, background: result.swept > 0 ? 'rgba(67,160,71,.08)' : 'rgba(108,117,125,.08)', border: `1px solid ${result.swept > 0 ? 'rgba(67,160,71,.25)' : 'rgba(108,117,125,.2)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>
               {result.swept > 0 ? `✓ ${result.swept} address(es) swept — ${result.total} ${result.currency} to the reserve` : `Nothing to sweep (${result.currency})`}
+              {result.swept > 0 && result.totalUsd != null && ` (about $${result.totalUsd.toFixed(2)} sent of the $${result.requestedUsd.toFixed(2)} asked, network fees included)`}
             </div>
             {result.results?.map((r, i) => (
               <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', marginBottom: 4, color: '#2e7d32' }}>
@@ -179,7 +182,9 @@ export default function AdminSuperDashboard() {
           {COINS.map(({ currency, color, key }) => (
             confirm === currency ? (
               <div key={currency} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: '#e65100', fontWeight: 600 }}>Sweep {currency} commission to the reserve?</span>
+                <span style={{ fontSize: 13, color: '#e65100', fontWeight: 600 }}>Sweep {sweepUsd ? `$${sweepUsd} of the` : 'all the'} {currency} commission to the reserve?</span>
+                <input className="admin-input" type="number" min="0.01" step="0.01" placeholder="USD, empty = all"
+                  value={sweepUsd} onChange={e => setSweepUsd(e.target.value)} style={{ width: 150, padding: '5px 8px' }} aria-label="Amount to sweep in USD" />
                 <button className="admin-btn admin-btn-success admin-btn-sm" onClick={doSweep} disabled={!!sweeping}>Yes, sweep</button>
                 <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={() => setConfirm(null)}>Cancel</button>
               </div>

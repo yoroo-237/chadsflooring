@@ -22,6 +22,7 @@ function SweepResult({ result, currency }) {
     <div style={{ marginBottom: 14, background: result.swept > 0 ? 'rgba(67,160,71,.08)' : 'rgba(108,117,125,.08)', border: `1px solid ${result.swept > 0 ? 'rgba(67,160,71,.25)' : 'rgba(108,117,125,.2)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
       <div style={{ fontWeight: 700, marginBottom: 6 }}>
         {result.swept > 0 ? `✓ ${result.swept} address(es) swept — ${result.total} ${currency}` : `Nothing to sweep (${currency})`}
+        {result.swept > 0 && result.totalUsd != null && ` (about $${result.totalUsd.toFixed(2)} sent of the $${result.requestedUsd.toFixed(2)} asked, network fees included)`}
       </div>
       {result.results?.map((r, i) => (
         <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', marginBottom: 4, color: '#2e7d32' }}>
@@ -58,6 +59,7 @@ export default function AdminSettings() {
 
   // UTXO sweep (BTC / LTC / DOGE)
   const [utxoConfirm, setUtxoConfirm]   = useState(null);   // null | 'BTC' | 'LTC' | 'DOGE'
+  const [sweepUsd, setSweepUsd]         = useState('');     // amount to sweep in USD, '' = everything owed
   const [utxoSweeping, setUtxoSweeping] = useState(false);
   const [utxoResult, setUtxoResult]     = useState(null);    // { currency, swept, results, skipped, total }
   const [showSeed, setShowSeed]         = useState(false);
@@ -82,7 +84,8 @@ export default function AdminSettings() {
   const doSweep = async () => {
     setSweeping(true); setSweepResult(null); setSweepConfirm(false); setErr(null);
     try {
-      const r = await adminFetch('/admin/eth/sweep', { method: 'POST' });
+      const r = await adminFetch('/admin/eth/sweep', { method: 'POST', body: sweepUsd ? { usd: Number(sweepUsd) } : {} });
+      setSweepUsd('');
       setSweepResult(r);
       loadSweepInfo();
     } catch (e) { setErr(e.message); }
@@ -93,7 +96,8 @@ export default function AdminSettings() {
     const currency = utxoConfirm;
     setUtxoSweeping(true); setUtxoResult(null); setUtxoConfirm(null); setErr(null);
     try {
-      const r = await adminFetch(`/admin/utxo/sweep/${currency}`, { method: 'POST' });
+      const r = await adminFetch(`/admin/utxo/sweep/${currency}`, { method: 'POST', body: sweepUsd ? { usd: Number(sweepUsd) } : {} });
+      setSweepUsd('');
       setUtxoResult({ ...r, currency });
       loadSweepInfo();
     } catch (e) { setErr(e.message); }
@@ -375,8 +379,13 @@ export default function AdminSettings() {
               ) : (
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 13, color: '#e65100', fontWeight: 600 }}>
-                    Sweep ETH → {short(s.eth_address)} ?
+                    Sweep {sweepUsd ? `$${sweepUsd} of ETH` : 'all ETH'} → {short(s.eth_address)} ?
                   </span>
+                  <input
+                        className="admin-input" type="number" min="0.01" step="0.01" placeholder="USD, empty = all"
+                        value={sweepUsd} onChange={e => setSweepUsd(e.target.value)}
+                        style={{ width: 150, padding: '5px 8px' }} aria-label="Amount to sweep in USD"
+                      />
                   <button type="button" className="admin-btn admin-btn-success" onClick={doSweep} disabled={sweeping}>
                     {sweeping ? 'Sending…' : 'Yes, sweep'}
                   </button>
@@ -394,7 +403,8 @@ export default function AdminSettings() {
 
             <Section title="BTC / LTC / DOGE Sweep">
               <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 14, lineHeight: 1.6 }}>
-                Sends the customer-credited share of every confirmed deposit to your address. Funds land in HD-derived
+                Sends the customer-credited share of confirmed deposits to your address: all of it, or the USD amount you enter
+                (oldest deposits first, the rest stays to sweep later). Funds land in HD-derived
                 addresses — this button signs and broadcasts the transfer automatically.
               </div>
 
@@ -409,8 +419,13 @@ export default function AdminSettings() {
                   utxoConfirm === currency ? (
                     <div key={currency} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 13, color: '#e65100', fontWeight: 600 }}>
-                        Sweep {currency} → {short(addr)} ?
+                        Sweep {sweepUsd ? `$${sweepUsd} of ${currency}` : `all ${currency}`} → {short(addr)} ?
                       </span>
+                      <input
+                        className="admin-input" type="number" min="0.01" step="0.01" placeholder="USD, empty = all"
+                        value={sweepUsd} onChange={e => setSweepUsd(e.target.value)}
+                        style={{ width: 150, padding: '5px 8px' }} aria-label="Amount to sweep in USD"
+                      />
                       <button type="button" className="admin-btn admin-btn-success admin-btn-sm" onClick={doUtxoSweep} disabled={utxoSweeping}>
                         {utxoSweeping ? 'Sending…' : 'Yes, sweep'}
                       </button>

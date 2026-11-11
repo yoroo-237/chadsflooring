@@ -99,7 +99,8 @@ export default function AdminDeposits() {
 
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState(null); // { id, currency }
-  const [confirmForm, setConfirmForm]   = useState({ amount: '', note: '' });
+  const [confirmForm, setConfirmForm]   = useState({ amount: '', note: '', unit: 'usd' });
+  const [confirmPrice, setConfirmPrice] = useState(null); // live USD price of the deposit's coin
   const [confirming, setConfirming]     = useState(false);
   const [confirmErr, setConfirmErr]     = useState(null);
 
@@ -146,7 +147,10 @@ export default function AdminDeposits() {
     try {
       await adminFetch(`/admin/deposits/${confirmModal.id}/confirm`, {
         method: 'PATCH',
-        body: { amount: parseFloat(confirmForm.amount), note: confirmForm.note || undefined },
+        body: {
+          ...(confirmForm.unit === 'usd' ? { usdAmount: parseFloat(confirmForm.amount) } : { amount: parseFloat(confirmForm.amount) }),
+          note: confirmForm.note || undefined,
+        },
       });
       setConfirmModal(null);
       load();
@@ -214,9 +218,11 @@ export default function AdminDeposits() {
   };
 
   const openConfirm = d => {
-    setConfirmForm({ amount: '', note: '' });
+    setConfirmForm({ amount: '', note: '', unit: 'usd' });
     setConfirmErr(null);
+    setConfirmPrice(null);
     setConfirmModal({ id: d.id, currency: d.currency });
+    adminFetch('/wallet/prices').then(r => setConfirmPrice(r?.prices?.[d.currency] || null)).catch(() => {});
   };
 
   return (
@@ -403,17 +409,34 @@ export default function AdminDeposits() {
             )}
             <form onSubmit={doConfirm}>
               <div className="admin-form-group">
-                <label className="admin-label">{confirmModal.currency} amount received *</label>
-                <input
-                  className="admin-input"
-                  type="number"
-                  min="0.00000001"
-                  step="0.00000001"
-                  value={confirmForm.amount}
-                  onChange={e => setConfirmForm(f => ({ ...f, amount: e.target.value }))}
-                  required
-                  autoFocus
-                />
+                <label className="admin-label">Amount received *</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    className="admin-input"
+                    type="number"
+                    min={confirmForm.unit === 'usd' ? '0.01' : '0.00000001'}
+                    step={confirmForm.unit === 'usd' ? '0.01' : '0.00000001'}
+                    value={confirmForm.amount}
+                    onChange={e => setConfirmForm(f => ({ ...f, amount: e.target.value }))}
+                    placeholder={confirmForm.unit === 'usd' ? '0.00' : '0.00000000'}
+                    required
+                    autoFocus
+                  />
+                  <select className="admin-select" style={{ width: 110 }} value={confirmForm.unit}
+                    onChange={e => setConfirmForm(f => ({ ...f, unit: e.target.value, amount: '' }))}>
+                    <option value="usd">USD</option>
+                    <option value="coin">{confirmModal.currency}</option>
+                  </select>
+                </div>
+                {Number(confirmForm.amount) > 0 && (
+                  <div style={{ fontSize: 12, color: '#6c757d', marginTop: 6 }}>
+                    {!confirmPrice
+                      ? `${confirmModal.currency} price loading…`
+                      : confirmForm.unit === 'usd'
+                        ? <>≈ <strong>{(Number(confirmForm.amount) / confirmPrice).toFixed(8)} {confirmModal.currency}</strong> at ${Number(confirmPrice).toLocaleString('en-US')} (converted again at confirmation)</>
+                        : <>≈ <strong>${(Number(confirmForm.amount) * confirmPrice).toFixed(2)}</strong> at ${Number(confirmPrice).toLocaleString('en-US')}</>}
+                  </div>
+                )}
               </div>
               <div className="admin-form-group">
                 <label className="admin-label">Note (optional)</label>

@@ -69,19 +69,20 @@ async function listSweepLogs(req, res) {
 }
 
 // Admin: sweeps the customer-credited share of every confirmed deposit to the shop address.
+// Optional body { usd }: only that USD amount (in the coin at the current price), oldest deposits first.
 async function sweepShopUtxo(req, res) {
-  return success(res, await sweepService.sweepUtxo('shop', req.params.currency, req.user.id));
+  return success(res, await sweepService.sweepUtxo('shop', req.params.currency, req.user.id, { usd: req.body?.usd }));
 }
 async function sweepShopEth(req, res) {
-  return success(res, await sweepService.sweepEth('shop', req.user.id));
+  return success(res, await sweepService.sweepEth('shop', req.user.id, { usd: req.body?.usd }));
 }
 
 // Super admin: sweeps the deposit commissions to the reserve address.
 async function sweepReserveUtxo(req, res) {
-  return success(res, await sweepService.sweepUtxo('reserve', req.params.currency, req.user.id));
+  return success(res, await sweepService.sweepUtxo('reserve', req.params.currency, req.user.id, { usd: req.body?.usd }));
 }
 async function sweepReserveEth(req, res) {
-  return success(res, await sweepService.sweepEth('reserve', req.user.id));
+  return success(res, await sweepService.sweepEth('reserve', req.user.id, { usd: req.body?.usd }));
 }
 
 async function getShopPending(req, res) {

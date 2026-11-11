@@ -50,15 +50,17 @@ async function listDeposits(req, res, next) {
 async function confirmDeposit(req, res, next) {
   try {
     const id = parseInt(req.params.id);
-    // `amount` is the crypto actually received (preferred). `usdAmount` is still
-    // accepted and converted at the current price for older clients.
+    // `amount`: the crypto received. `usdAmount`: a dollar amount, converted into the
+    // deposit's coin at the current price (what the admin usually knows).
     let amt = parseFloat(req.body.amount);
+    let converted = null;
     if (!(amt > 0) && parseFloat(req.body.usdAmount) > 0) {
       const d = await prisma.deposit.findUnique({ where: { id } });
       if (!d) return error(res, 'Deposit not found.', 404);
       const price = await getCurrencyUsdPrice(d.currency);
       if (!price) return error(res, `${d.currency} price unavailable — enter the crypto amount received instead.`, 503);
-      amt = parseFloat(req.body.usdAmount) / price;
+      amt = Math.round(parseFloat(req.body.usdAmount) / price * 1e8) / 1e8;
+      converted = { usd: parseFloat(req.body.usdAmount), price, amount: amt, currency: d.currency };
     }
     if (!(amt > 0)) {
       return error(res, 'amount (crypto received) must be a positive number.', 400);
@@ -67,7 +69,7 @@ async function confirmDeposit(req, res, next) {
     // Guard against unit mix-ups (USD typed in the crypto field): a large USD value
     // needs an explicit confirmLarge flag.
     const LARGE_USD = 5000;
-    if (req.body.confirmLarge !== true) {
+    if (req.body.confirmLarge !== true && !converted) {
       const d = await prisma.deposit.findUnique({ where: { id } });
       const price = d ? await getCurrencyUsdPrice(d.currency) : null;
       if (price && amt * price > LARGE_USD) {
@@ -78,7 +80,7 @@ async function confirmDeposit(req, res, next) {
     }
 
     const result = await confirmDepositManually(id, amt, req.user.id);
-    return success(res, result);
+    return success(res, { ...result, converted });
   } catch (e) { next(e); }
 }
 
