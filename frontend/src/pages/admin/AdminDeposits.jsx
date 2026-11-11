@@ -205,6 +205,20 @@ export default function AdminDeposits() {
     } finally { setCleanupLoading(false); }
   };
 
+  // Rereads the address on the blockchain and credits every payment not counted yet
+  const [syncing, setSyncing] = useState(null);
+  const doSync = async d => {
+    setSyncing(d.id); setErr(null);
+    try {
+      const r = await adminFetch(`/admin/deposits/${d.id}/sync`, { method: 'POST' });
+      window.alert(r.credited > 0
+        ? `Deposit #${d.id}: ${r.credited} payment(s) credited, ${r.newlyReceived} ${r.currency} (total received ${r.amountReceived} ${r.currency}).`
+        : r.pending ? `Deposit #${d.id}: a payment is still waiting for its confirmation.` : `Deposit #${d.id}: no new payment on this address.`);
+      load();
+    } catch (e) { setErr(e.message); }
+    finally { setSyncing(null); }
+  };
+
   const doVerify = async (depositId) => {
     setVerifying(depositId);
     try {
@@ -372,6 +386,12 @@ export default function AdminDeposits() {
                         {d.currency !== 'XMR' && d.address && d.address !== 'pending' && (
                           <button className="admin-btn admin-btn-secondary admin-btn-sm" title="Live balance of the deposit address on the blockchain" onClick={() => openInspect(d, 'chain')}>
                             Wallet
+                          </button>
+                        )}
+                        {d.currency !== 'XMR' && d.address && d.address !== 'pending' && (
+                          <button className="admin-btn admin-btn-primary admin-btn-sm" title="Read the address on the blockchain and credit every payment not counted yet"
+                            disabled={syncing === d.id} onClick={() => doSync(d)}>
+                            {syncing === d.id ? 'Checking…' : 'Check chain'}
                           </button>
                         )}
                         {['BTC', 'LTC', 'DOGE'].includes(d.currency) && (

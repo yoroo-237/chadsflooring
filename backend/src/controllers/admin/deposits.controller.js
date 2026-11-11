@@ -3,7 +3,7 @@ const { ethers } = require('ethers');
 const prisma = require('../../db');
 const { success, error } = require('../../utils/apiResponse');
 const { parsePaginationParams, buildPagination } = require('../../utils/pagination');
-const { confirmDepositManually, cleanupExpiredDeposits } = require('../../services/wallet.service');
+const { confirmDepositManually, cleanupExpiredDeposits, syncDeposit } = require('../../services/wallet.service');
 const { getCurrencyUsdPrice } = require('../../services/price.service');
 
 const BLOCKCYPHER_CHAIN = { BTC: 'btc/main', LTC: 'ltc/main', DOGE: 'doge/main' };
@@ -196,4 +196,24 @@ async function getOnchainBalance(req, res, next) {
   }
 }
 
-module.exports = { listDeposits, confirmDeposit, expireDeposit, cleanup, getUsdValue, getOnchainBalance };
+// Reads the deposit address on the blockchain and credits every payment not counted yet
+// (each transaction once, by its hash): the same as the customer's Check, from the admin.
+async function syncOne(req, res, next) {
+  try {
+    const id = parseInt(req.params.id);
+    const d = await prisma.deposit.findUnique({ where: { id } });
+    if (!d) return error(res, 'Deposit not found.', 404);
+    if (d.currency === 'XMR') return error(res, 'XMR deposits share one wallet address: confirm them by hand.', 422);
+    const before = parseFloat(d.amountReceived);
+    const { credited, pending } = await syncDeposit(d);
+    const after = await prisma.deposit.findUnique({ where: { id } });
+    return success(res, {
+      credited, pending, status: after.status,
+      amountReceived: parseFloat(after.amountReceived),
+      newlyReceived: Math.round((parseFloat(after.amountReceived) - before) * 1e8) / 1e8,
+      currency: after.currency,
+    });
+  } catch (e) { next(e); }
+}
+
+module.exports = { listDeposits, confirmDeposit, expireDeposit, cleanup, getUsdValue, getOnchainBalance, syncOne };

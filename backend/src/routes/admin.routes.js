@@ -56,6 +56,7 @@ router.post('/deposits/cleanup',       wrap(depositsCtrl.cleanup));
 router.get('/deposits/:id/usd-value',  wrap(depositsCtrl.getUsdValue));
 router.get('/deposits/:id/onchain',    wrap(depositsCtrl.getOnchainBalance));
 router.patch('/deposits/:id/confirm',  wrap(depositsCtrl.confirmDeposit));
+router.post('/deposits/:id/sync',      wrap(depositsCtrl.syncOne));
 router.patch('/deposits/:id/expire',   wrap(depositsCtrl.expireDeposit));
 
 // ─── Refunds of orders paid straight in crypto (late, short or surplus payments) ─
