@@ -3,6 +3,57 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { adminFetch } from './utils/api';
 import StatusBadge from '../../components/admin/StatusBadge';
 import ConfirmModal from '../../components/admin/ConfirmModal';
+import { decryptWith } from '../../utils/pgp';
+
+// A PGP-encrypted delivery address, read here with the private key file and its
+// passphrase. Everything happens in this browser: the key and the address are never sent.
+function EncryptedAddress({ message }) {
+  const [open, setOpen] = useState(false);
+  const [keyText, setKeyText] = useState('');
+  const [pass, setPass] = useState('');
+  const [plain, setPlain] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function run() {
+    setBusy(true); setErr('');
+    try { setPlain(await decryptWith(keyText, pass, message)); }
+    catch (e) { setErr(/passphrase|decrypt/i.test(e.message) ? 'Wrong passphrase, or this address was encrypted to another key.' : e.message); }
+    finally { setBusy(false); }
+  }
+  const readFile = file => file && file.text().then(setKeyText);
+
+  if (plain) {
+    return (
+      <span style={{ whiteSpace: 'pre-line' }}>{plain}<br />
+        <button type="button" className="admin-btn admin-btn-sm" style={{ marginTop: 6 }} onClick={() => { setPlain(''); setPass(''); }}>Hide</button>
+      </span>
+    );
+  }
+  return (
+    <span style={{ display: 'grid', gap: 6 }}>
+      <span>PGP encrypted address</span>
+      {!open ? (
+        <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button type="button" className="admin-btn admin-btn-primary admin-btn-sm" onClick={() => setOpen(true)}>Decrypt</button>
+          <button type="button" className="admin-btn admin-btn-sm" onClick={() => navigator.clipboard?.writeText(message)}>Copy the message</button>
+        </span>
+      ) : (
+        <span style={{ display: 'grid', gap: 6, maxWidth: 420 }}>
+          <span style={{ color: '#6c757d', fontSize: 13 }}>Your private key file (shop-pgp-private-key.asc) and its passphrase. Read in this browser only.</span>
+          <input type="file" accept=".asc,.txt,.key,.gpg" onChange={e => readFile(e.target.files?.[0])} />
+          {keyText && <span style={{ color: '#6c757d', fontSize: 13 }}>Key loaded.</span>}
+          <input className="admin-input" type="password" autoComplete="off" placeholder="Passphrase" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && keyText && run()} />
+          {err && <span style={{ color: '#e53935', fontSize: 13 }}>{err}</span>}
+          <span style={{ display: 'flex', gap: 6 }}>
+            <button type="button" className="admin-btn admin-btn-primary admin-btn-sm" disabled={!keyText || busy} onClick={run}>{busy ? 'Decrypting…' : 'Decrypt'}</button>
+            <button type="button" className="admin-btn admin-btn-sm" onClick={() => { setOpen(false); setKeyText(''); setPass(''); setErr(''); }}>Cancel</button>
+          </span>
+        </span>
+      )}
+    </span>
+  );
+}
 
 const fmt = n => `$${Number(n).toFixed(2)}`;
 const STATUSES = ['processing', 'shipped', 'delivered', 'cancelled'];
@@ -72,6 +123,18 @@ export default function AdminOrderDetail() {
           <div className="admin-card-title">Customer</div>
           <div className="admin-info-list">
             <div className="admin-info-row"><span className="admin-info-label">Username</span><span className="admin-info-value">{order.user?.username || '—'}</span></div>
+            <div className="admin-info-row"><span className="admin-info-label">Delivery</span><span className="admin-info-value">
+              {!order.shipAddress ? 'None (arrange it on Telegram)'
+                : order.shipName === 'PGP encrypted' ? <EncryptedAddress message={order.shipAddress} />
+                : <>{order.shipName}<br />{order.shipAddress}</>}
+            </span></div>
+            <div className="admin-info-row"><span className="admin-info-label">Payment</span><span className="admin-info-value">
+              {String(order.paymentMethod || '').startsWith('crypto:') ? `Paid in ${order.paymentMethod.slice(7)} to its own address` : 'Wallet balance'}
+              {(Array.isArray(order.payments) ? order.payments : []).map((p, i) => <div key={i} style={{ color: '#6c757d', fontSize: 13 }}>{p.amount} {p.currency} @ ${p.rate}</div>)}
+            </span></div>
+            <div className="admin-info-row"><span className="admin-info-label">Refund address</span><span className="admin-info-value" style={{ wordBreak: 'break-all' }}>
+              {order.refundAddress ? `${order.refundCurrency || ''} ${order.refundAddress}` : 'None'}
+            </span></div>
           </div>
         </div>
 
@@ -81,7 +144,7 @@ export default function AdminOrderDetail() {
           <div className="admin-form-group">
             <label className="admin-label">Status</label>
             <select className="admin-select" value={newStatus} onChange={e => setNewStatus(e.target.value)}>
-              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              {(order.status === 'awaiting_payment' ? ['awaiting_payment', 'cancelled'] : STATUSES).map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
             </select>
           </div>
           <div className="admin-form-group admin-mb-0">

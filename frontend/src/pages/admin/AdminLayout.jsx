@@ -76,6 +76,7 @@ const NAV = [
   { section: 'Users & Finance' },
   { to: '/mario-dashboard/users',        icon: <IconUsers />,         label: 'Users' },
   { to: '/mario-dashboard/deposits',     icon: <IconDeposits />,      label: 'Deposits' },
+  { to: '/mario-dashboard/refunds',      icon: <IconDeposits />,      label: 'Refunds' },
   { to: '/mario-dashboard/transactions', icon: <IconTransactions />,  label: 'Transactions' },
   { section: 'Support' },
   { to: '/mario-dashboard/support',      icon: <IconSupport />,       label: 'Support Tickets' },

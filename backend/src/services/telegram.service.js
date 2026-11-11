@@ -41,7 +41,7 @@ async function sendTelegram(html) {
 }
 
 // lines: [{ name, quantity, total }] · payments: [{ amount, currency }]
-async function sendOrderInvoice({ orderNumber, lines, shipping, total, payments, user, shipTo }) {
+async function sendOrderInvoice({ orderNumber, lines, shipping, total, payments, user, shipTo, via = 'wallet' }) {
   try {
     const telegram = formatContact(user?.telegramHandle);
     const paid = (payments || []).map(p => `${p.amount} ${p.currency}`).join(' + ') || 'wallet';
@@ -49,19 +49,19 @@ async function sendOrderInvoice({ orderNumber, lines, shipping, total, payments,
     const text = [
       `PAID ORDER ${orderNumber}`,
       ...items,
-      shipping != null ? `Shipping: ${Number(shipping) > 0 ? money(shipping) : 'Free'}` : null,
+      shipTo ? `Shipping: ${Number(shipping) > 0 ? money(shipping) : 'Free'}` : 'No delivery: arranged on Telegram',
       `Total: ${money(total)} — paid ${paid}`,
       user?.username ? `Account: ${user.username}` : null,
       telegram ? `Telegram: ${telegram}` : null,
       shipTo ? `Ship to: ${shipTo}` : null,
     ].filter(Boolean).join('\n');
     const delivered = await sendTelegram([
-      `✅ <b>Paid order ${escapeHtml(orderNumber)}</b> (wallet)`,
+      `✅ <b>Paid order ${escapeHtml(orderNumber)}</b> (${escapeHtml(via)})`,
       ...items.map(escapeHtml),
       `<b>Total: ${money(total)}</b> · paid ${escapeHtml(paid)}`,
       user?.username ? `👤 ${escapeHtml(user.username)}` : null,
       telegram ? `✈️ Telegram: ${escapeHtml(telegram)}` : '✈️ Telegram: not on profile',
-      shipTo ? `📦 ${escapeHtml(shipTo)}` : null,
+      shipTo ? `📦 ${escapeHtml(shipTo)}` : '📦 No delivery: arrange it with the customer',
     ].filter(Boolean).join('\n'));
     const shop = (await setting('telegram_username', process.env.TELEGRAM_SHOP_USERNAME)).replace(/^@/, '');
     return { text, delivered, shopTelegramUrl: shop ? `https://t.me/${shop}?text=${encodeURIComponent(text)}` : null };

@@ -34,6 +34,7 @@ export default function ProductPage() {
   const [qty, setQty]           = useState(1);
   const [optionOpen, setOptionOpen] = useState(false);
   const [optionIdx, setOptionIdx]   = useState(0);
+  const [imageIdx, setImageIdx]     = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -41,6 +42,11 @@ export default function ProductPage() {
       .then(data => {
         const p = data.product || data;
         setProduct(normalizeProduct(p));
+        // First variant still in stock
+        const firstInStock = (p.variants || []).findIndex(v => v.stock > 0);
+        setOptionIdx(firstInStock > 0 ? firstInStock : 0);
+        setImageIdx(0);
+        setQty(1);
       })
       .catch(() => setProduct(null))
       .finally(() => setLoading(false));
@@ -70,17 +76,25 @@ export default function ProductPage() {
     );
   }
 
-  const optionLabels = product.options && product.options > 1
-    ? Array.from({ length: product.options }, (_, i) => `${product.brand} ${product.name} (${i + 1})`)
+  // The real variants (flavor, strain, size), each with its own price and stock
+  const variants  = product.variants || [];
+  const variant   = variants[optionIdx] || null;
+  const optionLabels = variants.length
+    ? variants.map(v => `${v.label}${v.stock > 0 ? '' : ' (sold out)'}`)
     : [`${product.brand} ${product.name}`];
 
-  const stock     = product.stock || 0;
+  const stock     = variant ? variant.stock : (product.stock || 0);
   const inStock   = stock > 0;
   const reviewCount = product.reviewCount || 0;
   const rating    = product.rating || 0;
+  const priceLabel = variant ? `$${Number(variant.price).toFixed(2)}` : product.price;
+  const gallery   = [product.image, ...(product.images || [])].filter((u, i, a) => u && a.indexOf(u) === i);
 
-  const updateCart = () => { for (let i = 0; i < qty; i++) addToCart(product); };
-  const buyNow = () => { for (let i = 0; i < qty; i++) addToCart(product); navigate('/cart'); };
+  const cartItem = variant
+    ? { ...product, optionId: variant.id, optionLabel: variant.label, name: `${product.name} (${variant.label})`, price: priceLabel }
+    : product;
+  const updateCart = () => { for (let i = 0; i < qty; i++) addToCart(cartItem); };
+  const buyNow = () => { for (let i = 0; i < qty; i++) addToCart(cartItem); navigate('/cart'); };
 
   const dist = [5, 4, 3, 2, 1].map(star => ({
     star,
@@ -96,8 +110,17 @@ export default function ProductPage() {
           <div className="pd-hero">
             <div className="pd-gallery">
               <div className="pd-image">
-                <img src={product.image} alt={product.name} onError={e => { e.currentTarget.style.opacity = '.25'; }} />
+                <img src={gallery[imageIdx] || product.image} alt={product.name} onError={e => { e.currentTarget.style.opacity = '.25'; }} />
               </div>
+              {gallery.length > 1 && (
+                <div className="pd-thumbs">
+                  {gallery.map((u, i) => (
+                    <button key={u} type="button" className={`pd-thumb${i === imageIdx ? ' active' : ''}`} onClick={() => setImageIdx(i)} aria-label={`Image ${i + 1}`}>
+                      <img src={u} alt="" loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+              )}
               <button className="pd-report"><ImageIcon /> Report missing/incorrect image.</button>
             </div>
 
@@ -114,7 +137,7 @@ export default function ProductPage() {
                   {optionOpen && (
                     <div className="pd-select-menu">
                       {optionLabels.map((opt, i) => (
-                        <button key={i} className={`pd-select-opt${i === optionIdx ? ' active' : ''}`} onClick={() => { setOptionIdx(i); setOptionOpen(false); }}>{opt}</button>
+                        <button key={i} className={`pd-select-opt${i === optionIdx ? ' active' : ''}`} onClick={() => { setOptionIdx(i); setOptionOpen(false); setQty(1); }}>{opt}</button>
                       ))}
                     </div>
                   )}
@@ -136,7 +159,7 @@ export default function ProductPage() {
                 <button className="pd-buy" onClick={buyNow} disabled={!inStock}>Buy now</button>
               </div>
 
-              <div className="pd-price">{product.price}</div>
+              <div className="pd-price">{priceLabel}</div>
 
               <div className="pd-meta-row">
                 <span className="pd-auth"><ShieldCheck /> Authenticity <strong>Authentic</strong></span>
@@ -153,7 +176,7 @@ export default function ProductPage() {
             <section className="pd-section">
               <h2 className="pd-section-title">Pricing Tiers</h2>
               <div className="pd-tiers">
-                <div className="pd-tier"><span>1+</span><span>{product.price}</span></div>
+                <div className="pd-tier"><span>1+</span><span>{priceLabel}</span></div>
               </div>
             </section>
 

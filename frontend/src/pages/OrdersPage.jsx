@@ -5,6 +5,7 @@ import AccountSidebar from '../components/AccountSidebar';
 import { api } from '../utils/api';
 
 const STATUS_COLORS = {
+  awaiting_payment: '#ef6c00',
   processing: '#2196f3',
   Processing: '#2196f3',
   shipped: '#ff9800',
@@ -64,20 +65,24 @@ export default function OrdersPage() {
                 const items    = order.items || order.orderItems || [];
                 const total    = Number(order.total || order.totalAmount || 0);
                 const status   = order.status || 'Processing';
+                const statusLabel = status === 'awaiting_payment' ? 'Awaiting payment' : status;
                 const statusColor = STATUS_COLORS[status] || '#6c757d';
                 const date     = order.placedAt || order.date || order.createdAt;
                 return (
                   <div key={order.id} className="order-card">
                     <div className="order-card-header">
                       <div>
-                        <div className="order-id">{order.id}</div>
+                        <div className="order-id">{order.frontendId || order.id}</div>
                         <div className="order-date">{date ? new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                         <div className="order-total">${total.toFixed(2)}</div>
                         <span className="order-status" style={{ background: statusColor + '20', color: statusColor }}>
-                          {status}
+                          {statusLabel}
                         </span>
+                        {status === 'awaiting_payment' && (
+                          <Link to={`/orders/${order.id}/pay`} className="btn-primary order-pay-btn">Pay now</Link>
+                        )}
                       </div>
                     </div>
 
@@ -102,14 +107,14 @@ export default function OrdersPage() {
                       })}
                     </div>
 
-                    {(order.shipAddress || order.address || order.shippingAddress) && (
-                      <div className="order-address">
-                        <span className="order-address-label">Delivery:</span>{' '}
-                        {order.shipAddress
-                          ? `${order.shipAddress}, ${order.shipCity} ${order.shipPostal}, ${order.shipCountry}`
-                          : (order.address || order.shippingAddress)}
-                      </div>
-                    )}
+                    <div className="order-address">
+                      <span className="order-address-label">Delivery:</span>{' '}
+                      {!order.shipAddress
+                        ? 'None, arranged on Telegram'
+                        : order.shipName === 'PGP encrypted'
+                          ? 'PGP encrypted address'
+                          : `${order.shipName ? `${order.shipName}, ` : ''}${order.shipAddress}`}
+                    </div>
                   </div>
                 );
               })}

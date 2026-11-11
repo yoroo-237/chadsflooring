@@ -9,6 +9,7 @@ import ExplorePage from './pages/ExplorePage';
 import ProductPage from './pages/ProductPage';
 import CheckoutPage from './pages/CheckoutPage';
 import OrdersPage from './pages/OrdersPage';
+import OrderPaymentPage from './pages/OrderPaymentPage';
 import CartPage from './pages/CartPage';
 import ProfilePage from './pages/ProfilePage';
 import SupportPage from './pages/SupportPage';
@@ -49,6 +50,7 @@ import AdminGiveaways from './pages/admin/AdminGiveaways';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminSystemStatus from './pages/admin/AdminSystemStatus';
+import AdminRefunds from './pages/admin/AdminRefunds';
 
 export default function App() {
   return (
@@ -68,6 +70,7 @@ export default function App() {
             <Route path="users" element={<AdminUsers />} />
             <Route path="users/:id" element={<AdminUserDetail />} />
             <Route path="deposits" element={<AdminDeposits />} />
+            <Route path="refunds" element={<AdminRefunds />} />
             <Route path="transactions" element={<AdminTransactions />} />
             <Route path="support" element={<AdminSupport />} />
             <Route path="support/:id" element={<AdminTicketDetail />} />
@@ -92,6 +95,7 @@ export default function App() {
             <Route path="checkout" element={<CheckoutPage />} />
             <Route path="cart" element={<CartPage />} />
             <Route path="orders" element={<OrdersPage />} />
+            <Route path="orders/:id/pay" element={<OrderPaymentPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="support" element={<SupportPage />} />
             <Route path="faq" element={<FaqPage />} />

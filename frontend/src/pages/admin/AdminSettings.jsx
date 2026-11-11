@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import PgpKeyField from '../../components/admin/PgpKeyField';
 import { adminFetch } from './utils/api';
 
 const TIERS = [
@@ -162,6 +163,7 @@ export default function AdminSettings() {
         )}
 
         {tab === 'Shipping' && (
+          <>
           <Section title="Shipping">
             <div className="admin-form-row">
               <div className="admin-form-group">
@@ -203,6 +205,11 @@ export default function AdminSettings() {
               </div>
             </div>
           </Section>
+          <Section title="Delivery address encryption">
+            <PgpKeyField value={s.pgp_public_key || ''} onChange={v => set('pgp_public_key', v)} name={s.site_name || 'Shop'}
+              onGenerated={async key => { await adminFetch('/admin/settings', { method: 'PUT', body: { pgp_public_key: key } }); setSaved(true); setTimeout(() => setSaved(false), 3000); }} />
+          </Section>
+          </>
         )}
 
         {tab === 'Loyalty' && (

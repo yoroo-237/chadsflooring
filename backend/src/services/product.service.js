@@ -32,7 +32,15 @@ function formatProduct(p, markupPct = 0) {
     isLowStock:   p.stock > 0 && p.stock <= 10,
     rating:       Number(p.rating),
     reviewCount:  p.reviewCount,
-    optionsCount: p.optionsCount,
+    optionsCount: p.options?.length || p.optionsCount,
+    // The real variants (flavor, strain, size): each its own price and stock
+    variants:     (p.options || []).slice().sort((a, b) => a.sortOrder - b.sortOrder).map(o => {
+      let vp = Number(p.price) + Number(o.priceDelta);
+      if (Number(markupPct) > 0 && p.priceType === 'usd') vp = vp * (1 + Number(markupPct) / 100);
+      return { id: o.id, label: o.label, price: parseFloat(vp.toFixed(2)), stock: o.stock };
+    }),
+    description:  p.description || '',
+    images:       (p.images || []).map(i => i.url),
     imageUrl:     p.imageUrl,
     isActive:     p.isActive,
     isFeatured:   p.isFeatured,

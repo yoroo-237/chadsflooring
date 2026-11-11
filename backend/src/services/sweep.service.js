@@ -1,16 +1,19 @@
 const { HDNodeWallet, ethers } = require('ethers');
 const axios  = require('axios');
 const prisma = require('../db');
-const { buildDerSig, CHAIN, COIN_TYPE, ADDR_SETTING } = require('../controllers/admin/utxo.controller');
+const { CHAIN, ADDR_SETTING } = require('../controllers/admin/utxo.controller');
+const { sweepDepositUtxo, isValidUtxoAddress } = require('./crypto.service');
 
 // Two independent sweeps share the same deposit addresses:
 //   'shop'    (admin)       — the customer-credited share (Deposit.netAmount) → shop address
 //   'reserve' (super admin) — the deposit commission (Deposit.commissionAmount) → reserve address
-// Each sweep sends only its own share and leaves the other one on the address
-// (BlockCypher returns the change to the input address), so the order in which
-// they run doesn't matter. Each pays its own network fee out of its share.
-
-const DUST = 546;
+// Each sweep sends only its own share and returns the other one to the deposit
+// address as change, so the order in which they run doesn't matter. Each pays its
+// own network fee out of its share. UTXO sweeps are signed here (bitcoinjs-lib),
+// after checking that the derived key is the deposit address's own.
+// A customer can pay the same address again after a sweep: each sweep only sends what
+// is still owed to its side (netAmount - shopSweptAmount, commissionAmount - reserveSweptAmount),
+// and every address is checked for new payments (credited first) before it is swept.
 const RESERVE_ADDRESS_KEY = {
   BTC: 'super_btc_commission_address', LTC: 'super_ltc_commission_address',
   DOGE: 'super_doge_commission_address', ETH: 'super_eth_commission_address',
@@ -42,27 +45,41 @@ function eligibleWhere(kind, currency) {
     : { currency, status: 'confirmed', reserveSweptAt: null, commissionAmount: { gt: 0 } };
 }
 
-// How much of the address balance this sweep must leave behind for the other one.
-// Shares below dust can't be left as change, so they go with this sweep and the
-// other share is marked as settled ('dust').
+// What each side is still owed on the address (crypto)
+const shopOwed    = dep => Math.max(0, parseFloat(dep.netAmount) - parseFloat(dep.shopSweptAmount || 0));
+const reserveOwed = dep => Math.max(0, parseFloat(dep.commissionAmount) - parseFloat(dep.reserveSweptAmount || 0));
+
+// How much of the address balance this sweep must leave behind for the other one (in the
+// balance's unit). Shares below dust can't be left as change: they go with this sweep and
+// the other side is marked as settled ('dust').
 function amountToKeep(kind, dep, balance, unit) {
-  const commission = unit(dep.commissionAmount);
-  let keep;
-  if (kind === 'shop') keep = dep.reserveSweptAt ? 0 : commission;
-  else keep = dep.shopSweptAt ? 0 : Math.max(0, balance - commission);
-  return keep;
+  if (kind === 'shop') return dep.reserveSweptAt ? 0 : unit(reserveOwed(dep));
+  if (dep.shopSweptAt) return 0;
+  const left = balance - unit(reserveOwed(dep));
+  return left > 0 ? left : 0;
 }
 
-function sweptFields(kind, txHash) {
-  return kind === 'shop'
-    ? { shopSweptAt: new Date(), shopSweepTx: txHash }
-    : { reserveSweptAt: new Date(), reserveSweepTx: txHash };
+const sideFields = (side, txHash, dep) => side === 'shop'
+  ? { shopSweptAt: new Date(), shopSweepTx: txHash, shopSweptAmount: dep.netAmount }
+  : { reserveSweptAt: new Date(), reserveSweepTx: txHash, reserveSweptAmount: dep.commissionAmount };
+
+// Records a sweep on the deposit. Guarded by the amount received: if a new payment was
+// credited meanwhile, the deposit stays open for that new share.
+async function markSwept(kind, dep, txHash, settlesOther = false) {
+  const other = kind === 'shop' ? 'reserve' : 'shop';
+  const data = { ...sideFields(kind, txHash, dep), ...(settlesOther ? sideFields(other, 'dust', dep) : {}) };
+  const { count } = await prisma.deposit.updateMany({ where: { id: dep.id, amountReceived: dep.amountReceived }, data });
+  if (!count) {
+    const amounts = Object.fromEntries(Object.entries(data).filter(([k]) => k.endsWith('SweptAmount')));
+    await prisma.deposit.update({ where: { id: dep.id }, data: amounts });
+  }
 }
 
-function otherSettled(kind) {
-  return kind === 'shop'
-    ? { reserveSweptAt: new Date(), reserveSweepTx: 'dust' }
-    : { shopSweptAt: new Date(), shopSweepTx: 'dust' };
+// Credits the payments made to the address since it was last read, then reloads it
+async function freshDeposit(dep) {
+  const { syncDeposit } = require('./wallet.service');
+  await syncDeposit(dep);
+  return prisma.deposit.findUnique({ where: { id: dep.id } });
 }
 
 async function logSweep({ kind, currency, amount, destination, txHash, userId, pct }) {
@@ -90,92 +107,70 @@ function errorMessage(e) {
     || e.message;
 }
 
+// Deposits whose money is partly promised to a refund an admin hasn't decided yet
+async function depositsWithOpenRefunds(ids) {
+  if (!ids.length) return new Set();
+  const rows = await prisma.refundRequest.findMany({
+    where: { depositId: { in: ids }, status: { in: ['pending', 'sending', 'manual'] } },
+    select: { depositId: true },
+  });
+  return new Set(rows.map(r => r.depositId));
+}
+
+// The reserve sweep leaves everything but the commission still owed to it (the shop's
+// share), unless the shop side was already swept. Needs the address balance.
+async function reserveKeep(currency, dep) {
+  if (dep.shopSweptAt) return 0;
+  const { data } = await axios.get(
+    `https://api.blockcypher.com/v1/${CHAIN[currency]}/addrs/${dep.address}/balance?token=${process.env.BLOCKCYPHER_TOKEN}`,
+    { timeout: 8000 });
+  return amountToKeep('reserve', dep, data.balance || 0, toSats);
+}
+
 async function sweepUtxo(kind, currency, userId) {
   if (!['BTC', 'LTC', 'DOGE'].includes(currency)) throw fail('Invalid currency', 422);
-
-  const TOKEN = process.env.BLOCKCYPHER_TOKEN;
-  if (!TOKEN) throw fail('BLOCKCYPHER_TOKEN not configured.', 500);
-
-  const phrase = await getSetting('btc_hd_seed') || process.env.BTC_HD_SEED;
-  if (!phrase) throw fail('BTC HD Seed not configured — add it in Settings → Crypto.', 500);
+  if (!process.env.BLOCKCYPHER_TOKEN) throw fail('BLOCKCYPHER_TOKEN not configured.', 500);
 
   const destination = await getDestination(kind, currency);
-  const chain    = CHAIN[currency];
-  const coinType = COIN_TYPE[currency];
+  if (!isValidUtxoAddress(currency, destination)) {
+    throw fail(`The ${currency} ${kind === 'shop' ? 'destination' : 'reserve'} address is not a valid ${currency} address.`);
+  }
 
-  const chainInfo      = await axios.get(`https://api.blockcypher.com/v1/${chain}?token=${TOKEN}`);
-  const mediumFeePerKb = chainInfo.data.medium_fee_per_kb || chainInfo.data.low_fee_per_kb || 20000;
-
-  const deposits = await prisma.deposit.findMany({ where: eligibleWhere(kind, currency) });
+  const deposits = await prisma.deposit.findMany({ where: eligibleWhere(kind, currency), orderBy: { id: 'asc' } });
+  const held = kind === 'shop' ? await depositsWithOpenRefunds(deposits.map(d => d.id)) : new Set();
 
   const swept = [];
   const skipped = [];
   let total = 0;
 
-  for (const dep of deposits) {
+  for (const listed of deposits) {
+    if (held.has(listed.id)) {
+      skipped.push({ address: listed.address, reason: 'a refund on this deposit is waiting for approval (Admin → Refunds)' });
+      continue;
+    }
     try {
-      const balRes  = await axios.get(`https://api.blockcypher.com/v1/${chain}/addrs/${dep.address}/balance?token=${TOKEN}`);
-      const balance = balRes.data.balance || 0;
-      if (balance === 0) {
+      // New payments on the address are credited to the customer first, never swept unseen
+      const dep = await freshDeposit(listed);
+      // The deposit's other share stays on the address as change (sats)
+      const keep = kind === 'shop' ? amountToKeep('shop', dep, 0, toSats) : await reserveKeep(currency, dep);
+      const res = await sweepDepositUtxo(currency, dep, destination, keep);
+
+      if (res.empty) {
         // Deposits credited before commissions existed and already emptied: settle them
         // so they stop being queried on every sweep.
-        if (kind === 'shop' && toSats(dep.commissionAmount) === 0) {
-          await prisma.deposit.update({ where: { id: dep.id }, data: { shopSweptAt: new Date(), shopSweepTx: 'empty' } });
-        }
+        if (kind === 'shop' && toSats(dep.commissionAmount) === 0) await markSwept('shop', dep, 'empty');
         skipped.push({ address: dep.address, reason: 'empty' });
         continue;
       }
+      if (res.skipped) { skipped.push({ address: dep.address, reason: res.skipped }); continue; }
 
-      let keep = amountToKeep(kind, dep, balance, toSats);
-      let settlesOther = false;
-      if (keep > 0 && keep < DUST) { keep = 0; settlesOther = true; }
+      await markSwept(kind, dep, res.txHash, res.settlesOther);
+      await logSweep({ kind, currency, amount: res.sent / 1e8, destination, txHash: res.txHash, userId, pct: dep.commissionPct });
 
-      // Same fee convergence as before: BlockCypher's fee for the built transaction
-      // must equal the fee we deducted, otherwise the change (= the other share)
-      // would be off, or /txs/send would reject a change-less transaction.
-      let fee = Math.ceil((keep > 0 ? 260 : 230) * mediumFeePerKb / 1000);
-      let newTxRes, send;
-      let converged = false;
-      for (let attempt = 0; attempt < 5; attempt++) {
-        send = balance - keep - fee;
-        if (send < DUST) break;
-        newTxRes = await axios.post(
-          `https://api.blockcypher.com/v1/${chain}/txs/new?token=${TOKEN}`,
-          { inputs: [{ addresses: [dep.address] }], outputs: [{ addresses: [destination], value: send }], preference: 'low' }
-        );
-        const bcFee = newTxRes.data.fees;
-        if (!bcFee || bcFee === fee) { converged = true; break; }
-        fee = bcFee;
-      }
-      if (send < DUST) {
-        skipped.push({ address: dep.address, reason: `share too small to cover the network fee (~${fee} sats)` });
-        continue;
-      }
-      if (!converged) {
-        skipped.push({ address: dep.address, reason: 'fee estimate did not converge after 5 attempts — try sweeping again.' });
-        continue;
-      }
-
-      const wallet = HDNodeWallet.fromPhrase(phrase, undefined, `m/44'/${coinType}'/0'/0/${dep.id}`);
-      const pubKey = wallet.publicKey.slice(2);
-      const { tx, tosign } = newTxRes.data;
-      const signatures = tosign.map(hash => buildDerSig(wallet.signingKey, hash));
-      const sendRes = await axios.post(
-        `https://api.blockcypher.com/v1/${chain}/txs/send?token=${TOKEN}`,
-        { tx, tosign, signatures, pubkeys: tosign.map(() => pubKey) }
-      );
-      const txHash = sendRes.data.tx?.hash;
-
-      await prisma.deposit.update({
-        where: { id: dep.id },
-        data:  { ...sweptFields(kind, txHash), ...(settlesOther ? otherSettled(kind) : {}) },
-      });
-      await logSweep({ kind, currency, amount: send / 1e8, destination, txHash, userId, pct: dep.commissionPct });
-
-      swept.push({ address: dep.address, txHash, currency, amount: fmt8(send), fee: fmt8(fee) });
-      total += send;
+      swept.push({ address: dep.address, txHash: res.txHash, currency, amount: fmt8(res.sent), fee: fmt8(res.fee) });
+      total += res.sent;
     } catch (e) {
-      skipped.push({ address: dep.address, reason: errorMessage(e) });
+      skipped.push({ address: listed.address, reason: errorMessage(e) });
     }
   }
 
@@ -195,13 +190,19 @@ async function sweepEth(kind, userId) {
   const deposits = await prisma.deposit.findMany({
     where: { ...eligibleWhere(kind, 'ETH'), ethIndex: { not: null } },
   });
+  const held = kind === 'shop' ? await depositsWithOpenRefunds(deposits.map(d => d.id)) : new Set();
 
   const swept = [];
   const skipped = [];
   let total = 0n;
 
-  for (const dep of deposits) {
+  for (const listed of deposits) {
+    if (held.has(listed.id)) {
+      skipped.push({ address: listed.address, reason: 'a refund on this deposit is waiting for approval (Admin → Refunds)' });
+      continue;
+    }
     try {
+      const dep = await freshDeposit(listed);
       const wallet = HDNodeWallet.fromPhrase(phrase, undefined, `m/44'/60'/0'/0/${dep.ethIndex}`).connect(provider);
       const balance = await provider.getBalance(wallet.address);
       if (balance === 0n) { skipped.push({ address: dep.address, reason: 'empty' }); continue; }
@@ -210,10 +211,10 @@ async function sweepEth(kind, userId) {
       const gasPrice = feeData.maxFeePerGas || feeData.gasPrice || ethers.parseUnits('20', 'gwei');
       const gasCost  = 21000n * gasPrice;
 
-      const commission = toWei(dep.commissionAmount);
+      const owedToReserve = toWei(reserveOwed(dep));
       let keep;
-      if (kind === 'shop') keep = dep.reserveSweptAt ? 0n : commission;
-      else keep = dep.shopSweptAt ? 0n : (balance > commission ? balance - commission : 0n);
+      if (kind === 'shop') keep = dep.reserveSweptAt ? 0n : owedToReserve;
+      else keep = dep.shopSweptAt ? 0n : (balance > owedToReserve ? balance - owedToReserve : 0n);
 
       const value = balance - keep - gasCost;
       if (value <= 0n) {
@@ -224,31 +225,35 @@ async function sweepEth(kind, userId) {
       const sent = await wallet.sendTransaction({ to: destination, value, gasLimit: 21000n });
       await sent.wait();
 
-      await prisma.deposit.update({ where: { id: dep.id }, data: sweptFields(kind, sent.hash) });
+      await markSwept(kind, dep, sent.hash);
       await logSweep({ kind, currency: 'ETH', amount: ethers.formatEther(value), destination, txHash: sent.hash, userId, pct: dep.commissionPct });
 
       swept.push({ address: dep.address, txHash: sent.hash, currency: 'ETH', amount: ethers.formatEther(value) });
       total += value;
     } catch (e) {
-      skipped.push({ address: dep.address, reason: e.message });
+      skipped.push({ address: listed.address, reason: e.message });
     }
   }
 
   return { kind, currency: 'ETH', swept: swept.length, results: swept, skipped, total: ethers.formatEther(total) };
 }
 
-// Unswept amounts per currency, as recorded at deposit time.
+// What each side is still owed per currency (only what was not swept yet)
 async function pendingTotals(kind) {
-  const field = kind === 'shop' ? 'netAmount' : 'commissionAmount';
-  const rows = await prisma.deposit.groupBy({
-    by: ['currency'],
+  const rows = await prisma.deposit.findMany({
     where: kind === 'shop'
       ? { status: 'confirmed', shopSweptAt: null }
       : { status: 'confirmed', reserveSweptAt: null, commissionAmount: { gt: 0 } },
-    _sum: { [field]: true },
-    _count: { _all: true },
+    select: { currency: true, netAmount: true, shopSweptAmount: true, commissionAmount: true, reserveSweptAmount: true },
   });
-  return rows.map(r => ({ currency: r.currency, amount: parseFloat(r._sum[field] || 0), deposits: r._count._all }));
+  const by = {};
+  for (const d of rows) {
+    const owed = kind === 'shop' ? shopOwed(d) : reserveOwed(d);
+    by[d.currency] = by[d.currency] || { currency: d.currency, amount: 0, deposits: 0 };
+    by[d.currency].amount = Math.round((by[d.currency].amount + owed) * 1e8) / 1e8;
+    by[d.currency].deposits++;
+  }
+  return Object.values(by);
 }
 
 module.exports = { sweepUtxo, sweepEth, pendingTotals, RESERVE_ADDRESS_KEY };

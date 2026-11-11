@@ -1,5 +1,5 @@
 const prisma = require('../db');
-const { generateDepositAddress, deleteBlockCypherForwarding } = require('./crypto.service');
+const { generateDepositAddress, deleteBlockCypherForwarding, incomingPayments } = require('./crypto.service');
 const { formatTxnId } = require('../utils/formatters');
 const { parsePaginationParams, buildPagination } = require('../utils/pagination');
 const balanceService = require('./balance.service');
@@ -55,30 +55,40 @@ async function getWallet(userId) {
   };
 }
 
-async function createDeposit(userId, currency) {
+const depositView = d => ({
+  id:             d.id,
+  depositId:      d.id,
+  address:        d.address,
+  currency:       d.currency,
+  status:         d.status,
+  expiresAt:      d.expiresAt,
+  amountExpected: d.amountExpected,
+  orderId:        d.orderId,
+});
+
+// `orderId` / `minutes` / `expected`: an order's own deposit (its payment window, the
+// gross amount asked for); without them, a wallet top-up.
+async function createDeposit(userId, currency, { orderId = null, minutes = null, expected = null } = {}) {
   const ALLOWED = ['BTC', 'LTC', 'DOGE', 'ETH', 'XMR'];
   if (!ALLOWED.includes(currency)) {
     throw Object.assign(new Error('Unsupported currency.'), { status: 422 });
   }
 
-  // Return the existing active deposit if one is still open — avoids burning a BlockCypher forward slot.
-  const existing = await prisma.deposit.findFirst({
-    where: {
-      userId,
-      currency,
-      status:    { in: ['awaiting', 'partial'] },
-      expiresAt: { gt: new Date() },
-      address:   { not: 'pending' },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-  if (existing) {
-    return {
-      depositId: existing.id,
-      address:   existing.address,
-      currency:  existing.currency,
-      expiresAt: existing.expiresAt,
-    };
+  // A top-up reuses the open top-up of the same coin — avoids burning a BlockCypher hook slot.
+  // An order always gets its own address: its payments are counted against that order.
+  if (!orderId) {
+    const existing = await prisma.deposit.findFirst({
+      where: {
+        userId,
+        currency,
+        orderId:   null,
+        status:    { in: ['awaiting', 'partial'] },
+        expiresAt: { gt: new Date() },
+        address:   { not: 'pending' },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing) return depositView(existing);
   }
 
   // Free expired BlockCypher forwards before requesting a new one.
@@ -88,10 +98,10 @@ async function createDeposit(userId, currency) {
 
   const setting = await prisma.siteSetting.findUnique({ where: { key: 'deposit_expiry_hours' } });
   const expiryHours = parseInt(setting?.value) || 12;
-  const expiresAt = new Date(Date.now() + expiryHours * 3600 * 1000);
+  const expiresAt = new Date(Date.now() + (minutes ? minutes * 60 * 1000 : expiryHours * 3600 * 1000));
 
   const deposit = await prisma.deposit.create({
-    data: { userId, currency, address: 'pending', status: 'awaiting', expiresAt },
+    data: { userId, currency, address: 'pending', status: 'awaiting', expiresAt, orderId, amountExpected: expected },
   });
 
   let address, hookId, ethIndex;
@@ -107,29 +117,33 @@ async function createDeposit(userId, currency) {
     data:  { address, hookId: hookId || null, ethIndex: ethIndex || null },
   });
 
-  return {
-    depositId: updated.id,
-    address:   updated.address,
-    currency:  updated.currency,
-    expiresAt: updated.expiresAt,
-  };
+  return depositView(updated);
 }
 
-// Credits a deposit from the crypto amount actually received. The commission is
-// taken here: the customer's holding grows by the net amount only, and the
-// commission stays on the deposit address for the super admin's reserve sweep.
+// Credits one payment received on a deposit address (the crypto amount actually received).
+// The commission is taken here: the customer's holding grows by the net amount only, and
+// the commission stays on the address for the super admin's reserve sweep.
+//  - a top-up's first payment confirms it;
+//  - any later payment (the customer sent to the same address again), and every payment
+//    of an order's deposit, is credited on its own by receivePayment.
+// `txHash`: the transaction it comes from, counted once whatever reports it (webhook,
+// the customer's check, a sweep's check). An admin entry has no hash.
 async function confirmDepositManually(depositId, cryptoAmount, adminId, txHash = null) {
   const gross = balanceService.round8(parseFloat(cryptoAmount));
   if (!(gross > 0)) throw Object.assign(new Error('Received amount must be positive.'), { status: 422 });
 
   const deposit = await prisma.deposit.findUnique({ where: { id: depositId } });
   if (!deposit) throw Object.assign(new Error('Deposit not found.'), { status: 404 });
+  const seen = Array.isArray(deposit.txSeen) ? deposit.txSeen : [];
+  if (txHash && seen.includes(txHash)) return { duplicate: true };
 
-  const allowedStatuses = adminId
-    ? ['awaiting', 'partial', 'expired']  // admins can recover expired deposits
-    : ['awaiting', 'partial'];
-  if (!allowedStatuses.includes(deposit.status)) {
-    throw Object.assign(new Error('Deposit cannot be confirmed.'), { status: 422 });
+  const firstTopUp = !deposit.orderId && Number(deposit.amountReceived) === 0
+    && (['awaiting', 'partial'].includes(deposit.status) || ((adminId || txHash) && deposit.status === 'expired'));
+  if (!firstTopUp) {
+    // A confirmed top-up only takes payments seen on the blockchain (with their hash):
+    // an amount typed by hand on it could credit a payment twice
+    if (!deposit.orderId && !txHash) throw Object.assign(new Error('Deposit cannot be confirmed.'), { status: 422 });
+    return receivePayment(deposit, gross, { txHash, adminId });
   }
 
   // Price is informative only (USD shown on the transaction, minimum check):
@@ -150,10 +164,25 @@ async function confirmDepositManually(depositId, cryptoAmount, adminId, txHash =
   const { commission, net } = balanceService.splitDeposit(gross, pct);
   const netUsd = price ? balanceService.round2(net * price) : 0;
 
-  await prisma.$transaction(async tx => {
+  const done = await prisma.$transaction(async tx => {
+    // Claimed atomically: the webhook and the customer's check may confirm it at the same time
+    const { count } = await tx.deposit.updateMany({
+      where: { id: deposit.id, status: deposit.status, amountReceived: 0 },
+      data: {
+        status:           'confirmed',
+        amountReceived:   gross,
+        usdCredited:      netUsd,
+        commissionPct:    pct,
+        commissionAmount: commission,
+        netAmount:        net,
+        confirmedAt:      new Date(),
+        ...(txHash ? { txSeen: [...seen, txHash] } : {}),
+      },
+    });
+    if (!count) return false;
     const txn = await tx.transaction.create({
       data: {
-        frontendId:   formatTxnId(Date.now()),
+        frontendId:   formatTxnId(`${Date.now()}-d${deposit.id}`),
         userId:       deposit.userId,
         type:         'deposit',
         amount:       netUsd,
@@ -165,26 +194,132 @@ async function confirmDepositManually(depositId, cryptoAmount, adminId, txHash =
         ...(txHash ? { txHash } : {}),
       },
     });
-
-    await tx.deposit.update({
-      where: { id: deposit.id },
-      data: {
-        transactionId:    txn.id,
-        status:           'confirmed',
-        amountReceived:   gross,
-        usdCredited:      netUsd,
-        commissionPct:    pct,
-        commissionAmount: commission,
-        netAmount:        net,
-        confirmedAt:      new Date(),
-      },
-    });
-
+    await tx.deposit.update({ where: { id: deposit.id }, data: { transactionId: txn.id } });
     await balanceService.credit(tx, deposit.userId, deposit.currency, net);
+    return true;
   });
+  if (!done) {
+    // Someone else confirmed it meanwhile: this payment may still be a new one
+    if (txHash) return confirmDepositManually(depositId, gross, adminId, txHash);
+    throw Object.assign(new Error('Deposit cannot be confirmed.'), { status: 422 });
+  }
 
   const { balance } = await balanceService.getUserBalance(deposit.userId);
   return { newBalance: balance, credited: net, commission, currency: deposit.currency };
+}
+
+// One more payment on a deposit: an order's (its payments add up) or a top-up the customer
+// paid again. Credited to the customer's holding net of the commission; an order is then
+// settled, or refunded if it is already closed. If the address was already swept, the
+// sweeps are reopened for the new share only (what they took is kept in *SweptAmount).
+async function receivePayment(deposit, gross, { txHash = null, adminId = null } = {}) {
+  const seen = Array.isArray(deposit.txSeen) ? deposit.txSeen : [];
+  if (txHash && seen.includes(txHash)) return { duplicate: true };
+  const delta = balanceService.round8(gross);
+  if (!(delta > 0)) return { nothingNew: true };
+  // Expired: only a payment proven on the blockchain (its hash) or entered by an admin
+  if (deposit.status === 'expired' && !adminId && !txHash) throw Object.assign(new Error('Deposit cannot be confirmed.'), { status: 422 });
+
+  const price = await getCachedUsdPrice(deposit.currency);
+  const pct   = await balanceService.getCommissionPct();
+  const { commission, net } = balanceService.splitDeposit(delta, pct);
+  const netUsd = price ? balanceService.round2(net * price) : 0;
+
+  const credited = await prisma.$transaction(async tx => {
+    // Guarded by the amount read above: two reports of the same payment credit it once
+    const { count } = await tx.deposit.updateMany({
+      where: { id: deposit.id, amountReceived: deposit.amountReceived },
+      data: {
+        amountReceived:   { increment: delta },
+        commissionAmount: { increment: commission },
+        netAmount:        { increment: net },
+        usdCredited:      { increment: netUsd },
+        commissionPct:    pct,
+        ...(['awaiting', 'expired'].includes(deposit.status) ? { status: deposit.orderId ? 'partial' : 'confirmed' } : {}),
+        ...(txHash ? { txSeen: [...seen, txHash] } : {}),
+        // Swept before: everything that was there is gone, the new shares are to sweep
+        ...(deposit.shopSweptAt ? { shopSweptAt: null, shopSweptAmount: deposit.netAmount } : {}),
+        ...(deposit.reserveSweptAt ? { reserveSweptAt: null, reserveSweptAmount: deposit.commissionAmount } : {}),
+      },
+    });
+    if (count === 0) return null;
+    const txn = await tx.transaction.create({
+      data: {
+        frontendId:   formatTxnId(`${Date.now()}-d${deposit.id}-${seen.length}`),
+        userId:       deposit.userId,
+        orderId:      deposit.orderId,
+        type:         'deposit',
+        amount:       netUsd,
+        currency:     deposit.currency,
+        cryptoAmount: net,
+        rate:         price || null,
+        status:       'confirmed',
+        note:         `${deposit.orderId ? 'Order payment' : 'Another payment'}, deposit #${deposit.id}: ${delta} ${deposit.currency} received, ${pct}% fee (${commission} ${deposit.currency})`,
+        ...(txHash ? { txHash } : {}),
+      },
+    });
+    if (!deposit.transactionId) await tx.deposit.update({ where: { id: deposit.id }, data: { transactionId: txn.id } });
+    await balanceService.credit(tx, deposit.userId, deposit.currency, net);
+    return { net };
+  });
+  if (!credited) {
+    // The deposit changed meanwhile (another payment credited): try again on fresh data
+    const fresh = await prisma.deposit.findUnique({ where: { id: deposit.id } });
+    if (txHash && fresh && !(fresh.txSeen || []).includes(txHash)) return receivePayment(fresh, gross, { txHash, adminId });
+    return { duplicate: true };
+  }
+
+  if (deposit.orderId) {
+    const fresh = await prisma.deposit.findUnique({ where: { id: deposit.id } });
+    const orderService = require('./order.service');
+    await orderService.settlePendingOrder(deposit.orderId, {
+      currency: deposit.currency, net: parseFloat(fresh.netAmount), deltaNet: credited.net, depositId: deposit.id,
+    });
+  } else {
+    await prisma.notification.create({
+      data: { userId: deposit.userId, type: 'wallet', title: 'Payment received', body: `${credited.net} ${deposit.currency} added to your balance (deposit #${deposit.id}).`, link: '/wallet' },
+    }).catch(() => {});
+  }
+  return { credited: credited.net, currency: deposit.currency };
+}
+
+// Looks at the blockchain for every payment made to a deposit address and credits the ones
+// not counted yet. Deposits credited before payments were tracked by transaction have an
+// empty txSeen: their oldest payments, up to the amount already credited, are marked as
+// counted (not credited again). XMR is checked by hand.
+async function syncDeposit(depositOrId) {
+  let dep = typeof depositOrId === 'object' ? depositOrId : await prisma.deposit.findUnique({ where: { id: depositOrId } });
+  if (!dep || dep.currency === 'XMR' || !dep.address || dep.address === 'pending') return { credited: 0, pending: false };
+
+  const { payments, pending } = await incomingPayments(dep);
+  let seen = Array.isArray(dep.txSeen) ? dep.txSeen : [];
+  if (!seen.length && Number(dep.amountReceived) > 0) {
+    let acc = 0;
+    const baseline = [];
+    for (const p of payments) {
+      if (acc + p.amount > Number(dep.amountReceived) + 1e-8) break;
+      acc += p.amount;
+      baseline.push(p.hash);
+    }
+    if (baseline.length) {
+      await prisma.deposit.updateMany({ where: { id: dep.id, amountReceived: dep.amountReceived }, data: { txSeen: baseline } });
+      seen = baseline;
+    }
+  }
+
+  let credited = 0;
+  for (const p of payments) {
+    if (seen.includes(p.hash)) continue;
+    try {
+      const r = await confirmDepositManually(dep.id, p.amount, null, p.hash);
+      if (r && !r.duplicate && !r.nothingNew) credited++;
+    } catch (e) {
+      console.warn(`[Deposits] payment ${p.hash} on deposit #${dep.id} not credited:`, e.message);
+    }
+    dep = await prisma.deposit.findUnique({ where: { id: dep.id } });
+    seen = Array.isArray(dep.txSeen) ? dep.txSeen : [];
+  }
+  return { credited, pending };
 }
 
 async function getTransactions(userId, { type, page = 1, limit = 20 } = {}) {
@@ -229,13 +364,33 @@ async function getDeposits(userId, { page = 1, limit = 20 } = {}) {
 
 async function cleanupExpiredDeposits() {
   const now = new Date();
-  const expired = await prisma.deposit.findMany({
+  const lapsed = await prisma.deposit.findMany({
     where: {
       status:    { in: ['awaiting', 'partial'] },
       expiresAt: { lt: now },
     },
+    select: { id: true, hookId: true, currency: true, orderId: true },
+  });
+
+  // An order still awaiting payment is about to be cancelled, which keeps its deposit
+  // watched 24 hours more: expired now, a late payment would never be seen nor refunded.
+  const orderIds = lapsed.map(d => d.orderId).filter(Boolean);
+  const open = orderIds.length
+    ? await prisma.order.findMany({ where: { id: { in: orderIds }, status: 'awaiting_payment' }, select: { id: true } })
+    : [];
+  const openIds = new Set(open.map(o => o.id));
+  const expired = lapsed.filter(d => !openIds.has(d.orderId));
+
+  // A paid address keeps its BlockCypher hook 7 days, to see a payment sent to it again;
+  // after that the hook is released (the customer's Check, or a sweep, still finds such a payment).
+  const stale = await prisma.deposit.findMany({
+    where: { status: 'confirmed', hookId: { not: null }, confirmedAt: { lt: new Date(Date.now() - 7 * 24 * 3600 * 1000) } },
     select: { id: true, hookId: true, currency: true },
   });
+  if (stale.length) {
+    await Promise.allSettled(stale.map(d => deleteBlockCypherForwarding(d.currency, d.hookId)));
+    await prisma.deposit.updateMany({ where: { id: { in: stale.map(d => d.id) } }, data: { hookId: null } });
+  }
 
   if (expired.length === 0) return 0;
 
@@ -257,6 +412,8 @@ module.exports = {
   getWallet,
   createDeposit,
   confirmDepositManually,
+  receivePayment,
+  syncDeposit,
   getTransactions,
   getDeposits,
   cleanupExpiredDeposits,

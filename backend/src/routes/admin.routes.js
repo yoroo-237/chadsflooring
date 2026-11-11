@@ -18,6 +18,7 @@ const categoriesCtrl   = require('../controllers/categories.controller');
 const brandsCtrl       = require('../controllers/brands.controller');
 const utxoCtrl        = require('../controllers/admin/utxo.controller');
 const superadminCtrl   = require('../controllers/admin/superadmin.controller');
+const refunds          = require('../services/orderRefund.service');
 
 const router = Router();
 
@@ -56,6 +57,13 @@ router.get('/deposits/:id/usd-value',  wrap(depositsCtrl.getUsdValue));
 router.get('/deposits/:id/onchain',    wrap(depositsCtrl.getOnchainBalance));
 router.patch('/deposits/:id/confirm',  wrap(depositsCtrl.confirmDeposit));
 router.patch('/deposits/:id/expire',   wrap(depositsCtrl.expireDeposit));
+
+// ─── Refunds of orders paid straight in crypto (late, short or surplus payments) ─
+// Approving sends the money from the deposit address; "keep in wallet" credits it back.
+router.get('/refunds',               wrap(async (req, res) => res.json({ success: true, data: { refunds: await refunds.list(req.query.status || null) } })));
+router.post('/refunds/:id/approve',  wrap(async (req, res) => res.json({ success: true, data: await refunds.approve(parseInt(req.params.id), req.body?.address || null) })));
+router.post('/refunds/:id/sent',     wrap(async (req, res) => res.json({ success: true, data: await refunds.markSent(parseInt(req.params.id), req.body?.txHash) })));
+router.post('/refunds/:id/keep',     wrap(async (req, res) => res.json({ success: true, data: await refunds.keepInWallet(parseInt(req.params.id)) })));
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
 router.get('/transactions', wrap(transactionsCtrl.listTransactions));

@@ -1,6 +1,7 @@
 const prisma = require('../../db');
 const { success, error } = require('../../utils/apiResponse');
 const { resetMaintenanceCache } = require('../../middlewares/maintenance');
+const { readPublicKey } = require('../../services/pgp.service');
 
 // Settings prefixed "super_" hold superadmin-only data (commission sweep config) —
 // keep them out of the generic admin-facing settings API entirely.
@@ -17,6 +18,8 @@ async function updateSettings(req, res) {
   }
 
   const entries = Object.entries(updates).filter(([key]) => !key.startsWith('super_'));
+  // A public key only, checked (a private key is refused, never stored)
+  for (const e of entries) if (e[0] === 'pgp_public_key') e[1] = await readPublicKey(e[1]);
 
   await prisma.$transaction(
     entries.map(([key, value]) =>

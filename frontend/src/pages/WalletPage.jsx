@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import AccountSidebar from '../components/AccountSidebar';
 import { api } from '../utils/api';
@@ -18,44 +19,44 @@ const DEPOSIT_GUIDE = {
     time: '~10–60 min',
     steps: [
       'Copy the Bitcoin address above or scan the QR code with your wallet app.',
-      'Send any amount of BTC to this address — one transaction only.',
+      'Send any amount of BTC to this address. You can send to it again later: each payment is credited.',
       'After 1 blockchain confirmation (usually 10–60 minutes), the BTC you sent (minus the deposit fee) is added to your balance automatically.',
       'Your balance keeps the BTC itself — its USD value follows the live market price until you spend it.',
     ],
-    warning: 'Send only Bitcoin (BTC) to this address. Do not reuse it — each address is single-use.',
+    warning: 'Send only Bitcoin (BTC) to this address.',
   },
   LTC: {
     auto: true,
     time: '~5–30 min',
     steps: [
       'Copy the Litecoin address above or scan the QR code.',
-      'Send any amount of LTC from your wallet — one transaction only.',
+      'Send any amount of LTC from your wallet. Each payment to this address is credited.',
       'After 1 confirmation on the Litecoin network (usually 5–30 min), your balance updates automatically.',
       'Your balance holds the LTC itself; its USD value follows the live market price.',
     ],
-    warning: 'Send only Litecoin (LTC) to this address. One transaction only — do not reuse.',
+    warning: 'Send only Litecoin (LTC) to this address.',
   },
   DOGE: {
     auto: true,
     time: '~5–15 min',
     steps: [
       'Copy the Dogecoin address above or scan the QR code.',
-      'Send any amount of DOGE — one transaction only.',
+      'Send any amount of DOGE. Each payment to this address is credited.',
       'After 1 confirmation (usually 5–15 min), your DOGE (minus the deposit fee) is credited automatically.',
       'Your balance holds the DOGE itself; its USD value follows the live market price.',
     ],
-    warning: 'Send only Dogecoin (DOGE) to this address. One transaction only — do not reuse.',
+    warning: 'Send only Dogecoin (DOGE) to this address.',
   },
   ETH: {
     auto: true,
     time: '~1–5 min',
     steps: [
       'Copy the Ethereum address above or scan the QR code.',
-      'Send any amount of ETH — one transaction only.',
+      'Send any amount of ETH. Each payment to this address is credited.',
       'After 1 network confirmation (usually 1–5 minutes), your balance is updated automatically.',
       'Your balance holds the ETH itself; its USD value follows the live market price.',
     ],
-    warning: 'Send only ETH to this address — not ERC-20 tokens. One transaction only.',
+    warning: 'Send only ETH to this address, not ERC-20 tokens.',
   },
   XMR: {
     auto: false,
@@ -126,10 +127,8 @@ const DEPOSIT_TERMS = [
   'Your balance is held in that crypto: its USD value follows the live market price and can go up or down until you spend it.',
   'At checkout, the order total is converted at the live price at that moment and that exact amount of crypto is deducted.',
   'If no transaction is received after 12 hours, this deposit will be cancelled.',
-  'Do not reuse the deposit addresses, the system will not detect it. Send only ONE TRANSACTION to the address.',
-  'Additional deposits will be permanently lost with no ability to recover.',
-  'Do not send funds to a cancelled deposit address, the system will not detect it.',
-  'Funds sent to the address of a cancelled deposit will be permanently lost with no ability to recover.',
+  'You can send to the same address more than once: each payment is credited after 1 confirmation (Monero: by hand).',
+  'If a payment does not show up, press Check next to the deposit.',
 ];
 
 function formatCountdown(expiresAt) {
@@ -207,9 +206,11 @@ export default function WalletPage() {
     setCreating(true);
     try {
       const data = await api.post('/wallet/deposit', { currency: selectedCurrency });
-      const dep  = data.deposit || data;
+      const raw = data.deposit || data;
+      // The server answers { depositId, … }: without `id` the blockchain check never ran
+      const dep = { ...raw, id: raw.id ?? raw.depositId };
       setCurrentDeposit(dep);
-      setDeposits(prev => [dep, ...prev]);
+      setDeposits(prev => [dep, ...prev.filter(d => d.id !== dep.id)]);
       setAgreed(false);
       setModalStep('address');
     } catch (err) {
@@ -217,6 +218,30 @@ export default function WalletPage() {
     } finally {
       setCreating(false);
     }
+  };
+
+  // Looks at the address again: a payment sent to it once more is credited
+  const [checkingId, setCheckingId] = useState(null);
+  const recheck = async dep => {
+    setCheckingId(dep.id);
+    try {
+      const r = await api.post(`/wallet/deposits/${dep.id}/check`);
+      if (r.newBalance != null) setBalance(r.newBalance);
+      refreshBalance();
+      api.get('/wallet/deposits').then(d => setDeposits(d.deposits || d || [])).catch(() => {});
+      showToast(r.credited > 0 ? `${r.credited} new payment${r.credited > 1 ? 's' : ''} credited.` : r.pending ? 'A payment is waiting for its confirmation.' : 'No new payment on this address.', r.credited > 0 ? 'success' : 'info');
+    } catch (e) {
+      showToast(e.message || 'Check failed', 'error');
+    } finally { setCheckingId(null); }
+  };
+
+  // A pending deposit's address stays valid until it expires: reopen its QR and checks
+  const isOpen = dep => ['awaiting', 'partial'].includes(dep.status) && dep.address && dep.address !== 'pending'
+    && (!dep.expiresAt || new Date(dep.expiresAt) > Date.now());
+  const showDeposit = dep => {
+    setCurrentDeposit(dep);
+    setSelectedCurrency(dep.currency);
+    setModalStep('address');
   };
 
   const closeModal = () => {
@@ -352,11 +377,11 @@ export default function WalletPage() {
               {activeTab === 0 && (
                 <table className="credits-table">
                   <thead>
-                    <tr><th>Id</th><th>Status</th><th>Currency</th><th>Address</th><th>Created</th><th>Details</th></tr>
+                    <tr><th>Id</th><th>Status</th><th>Currency</th><th>Received</th><th>Address</th><th>Created</th><th>Details</th></tr>
                   </thead>
                   <tbody>
                     {deposits.length === 0 ? (
-                      <tr><td colSpan={6} className="credits-table-empty">No deposits yet.</td></tr>
+                      <tr><td colSpan={7} className="credits-table-empty">No deposits yet.</td></tr>
                     ) : deposits.map(dep => (
                       <tr key={dep.id}>
                         <td className="credits-table-id">{String(dep.id).slice(-8)}</td>
@@ -366,9 +391,20 @@ export default function WalletPage() {
                           </span>
                         </td>
                         <td>{dep.currency}</td>
+                        <td>{Number(dep.amountReceived) > 0 ? `${Number(dep.amountReceived)} ${dep.currency}` : '—'}</td>
                         <td className="credits-table-addr">{dep.address ? dep.address.slice(0, 14) + '…' : '—'}</td>
                         <td>{dep.createdAt ? new Date(dep.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
-                        <td><button className="credits-details-btn" onClick={() => dep.address && handleCopy(dep.address)}>View</button></td>
+                        <td>
+                          {dep.orderId && isOpen(dep) ? (
+                            <Link className="credits-details-btn" to={`/orders/${dep.orderId}/pay`}>Pay order</Link>
+                          ) : isOpen(dep) ? (
+                            <button className="credits-details-btn" onClick={() => showDeposit(dep)}>Show</button>
+                          ) : dep.currency !== 'XMR' && dep.address && dep.address !== 'pending' ? (
+                            <button className="credits-details-btn" disabled={checkingId === dep.id} onClick={() => recheck(dep)}>{checkingId === dep.id ? 'Checking…' : 'Check'}</button>
+                          ) : (
+                            <button className="credits-details-btn" onClick={() => dep.address && handleCopy(dep.address)}>Copy</button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

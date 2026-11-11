@@ -1,37 +1,27 @@
 const crypto = require('crypto');
 const prisma  = require('../db');
-const { confirmDepositManually }      = require('../services/wallet.service');
-const { deleteBlockCypherForwarding } = require('../services/crypto.service');
+const { syncDeposit } = require('../services/wallet.service');
+
+// A payment can reach a deposit address at any time, again and again (an order paid in
+// several goes, a customer paying the same top-up address twice). The webhooks only say
+// "something happened on this address": syncDeposit reads the address's payments and
+// credits each transaction once, by its hash.
+const WATCHED = ['awaiting', 'partial', 'confirmed'];
 
 // POST /api/webhooks/blockcypher
 async function blockcypher(req, res) {
   res.status(200).json({ received: true }); // respond immediately — BlockCypher retries on timeout
 
   try {
-    const body = req.body || {};
-
-    // ── Address webhook confirmed-tx ──────────────────────────────────────────
-    const { addresses, outputs, confirmations, hash } = body;
-    if (!addresses?.length || !outputs?.length || (confirmations ?? 0) < 1) return;
+    const { addresses, confirmations } = req.body || {};
+    if (!addresses?.length || (confirmations ?? 0) < 1) return;
 
     for (const address of addresses) {
       const deposit = await prisma.deposit.findFirst({
-        where: {
-          address,
-          currency: { in: ['BTC', 'LTC', 'DOGE'] },
-          status:   { in: ['awaiting', 'partial'] },
-        },
+        where: { address, currency: { in: ['BTC', 'LTC', 'DOGE'] }, status: { in: WATCHED } },
+        orderBy: { id: 'desc' },
       });
-      if (!deposit) continue;
-
-      const satoshis = outputs
-        .filter(o => Array.isArray(o.addresses) && o.addresses.includes(address))
-        .reduce((sum, o) => sum + (o.value || 0), 0);
-      if (satoshis <= 0) continue;
-
-      // Credited in crypto (net of commission) — no price needed to confirm.
-      await confirmDepositManually(deposit.id, satoshis / 1e8, null, hash || null);
-      await deleteBlockCypherForwarding(deposit.currency, deposit.hookId);
+      if (deposit) await syncDeposit(deposit);
     }
   } catch (e) {
     console.error('BlockCypher webhook error:', e.message);
@@ -53,25 +43,18 @@ async function alchemy(req, res) {
     }
 
     if (req.body?.type !== 'ADDRESS_ACTIVITY') return;
-
     const activity = req.body?.event?.activity;
     if (!Array.isArray(activity)) return;
 
-    for (const act of activity) {
-      if (act.category !== 'external' || act.asset !== 'ETH') continue;
-      const toAddress = act.toAddress?.toLowerCase();
-      if (!toAddress || !act.value) continue;
-
+    const addresses = new Set(activity
+      .filter(a => a.category === 'external' && a.asset === 'ETH' && a.toAddress)
+      .map(a => a.toAddress.toLowerCase()));
+    for (const toAddress of addresses) {
       const deposit = await prisma.deposit.findFirst({
-        where: {
-          currency: 'ETH',
-          status:   { in: ['awaiting', 'partial'] },
-          address:  { equals: toAddress, mode: 'insensitive' },
-        },
+        where: { currency: 'ETH', status: { in: WATCHED }, address: { equals: toAddress, mode: 'insensitive' } },
+        orderBy: { id: 'desc' },
       });
-      if (!deposit) continue;
-
-      await confirmDepositManually(deposit.id, parseFloat(act.value), null, act.hash || null);
+      if (deposit) await syncDeposit(deposit);
     }
   } catch (e) {
     console.error('Alchemy webhook error:', e.message);

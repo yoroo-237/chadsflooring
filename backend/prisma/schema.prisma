@@ -64,6 +64,7 @@ model User {
   teamMemberships TeamMember[]    @relation("TeamMember")
   sweepLogs       SweepLog[]
   holdings        WalletHolding[]
+  refundRequests  RefundRequest[]
 
   @@index([role])
 }
@@ -241,6 +242,11 @@ model Order {
   shipPostal     String?
   shipCountry    String?
   trackingNumber String?
+  // Paid straight in crypto: the deadline of an order "awaiting_payment", and where
+  // a short, late or surplus payment is refunded (optional, given at checkout).
+  expiresAt      DateTime?
+  refundCurrency String?
+  refundAddress  String?
   notes          String   @default("")
   placedAt       DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -317,13 +323,45 @@ model Deposit {
   shopSweepTx      String?
   reserveSweptAt   DateTime?
   reserveSweepTx   String?
+  // How much of netAmount / commissionAmount has already left the address: a customer
+  // can pay the same address again after a sweep, and only the new share is swept then.
+  shopSweptAmount    Decimal  @default(0) @db.Decimal(18, 8)
+  reserveSweptAmount Decimal  @default(0) @db.Decimal(18, 8)
   status         String    @default("awaiting")
   expiresAt      DateTime?
   confirmedAt    DateTime?
   createdAt      DateTime  @default(now())
+  // The order this deposit pays directly (no wallet top-up); its payments add up
+  orderId        Int?      @unique
+  // Transactions already counted on an order deposit (ETH: one webhook per payment)
+  txSeen         Json      @default("[]")
 
   user        User         @relation(fields: [userId], references: [id])
   transaction Transaction? @relation(fields: [transactionId], references: [id])
+}
+
+// Refunds an admin approves for orders paid straight in crypto: a payment after the
+// 30 minutes, a short payment on an order that expired, a surplus. The amount leaves
+// the customer's holding when the request is made; rejecting it puts it back.
+model RefundRequest {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  orderId   Int?
+  depositId Int
+  currency  String
+  amount    Decimal   @db.Decimal(18, 8)
+  address   String?
+  reason    String
+  status    String    @default("pending") // pending | sending | manual | refunded | rejected
+  txHash    String?
+  error     String?
+  createdAt DateTime  @default(now())
+  decidedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([depositId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

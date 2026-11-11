@@ -2,6 +2,7 @@ import React from 'react';
 
 const COLORS = {
   // orders
+  awaiting_payment: { bg: 'rgba(255,152,0,.12)', color: '#ef6c00' },
   processing: { bg: 'rgba(33,150,243,.12)', color: '#2196f3' },
   shipped:    { bg: 'rgba(255,152,0,.12)',  color: '#ff9800' },
   delivered:  { bg: 'rgba(67,160,71,.12)', color: '#43a047' },
@@ -18,6 +19,9 @@ const COLORS = {
   inactive:  { bg: 'rgba(108,117,125,.12)', color: '#6c757d' },
   confirmed: { bg: 'rgba(67,160,71,.12)', color: '#43a047' },
   rejected:  { bg: 'rgba(229,57,53,.12)', color: '#e53935' },
+  partial:   { bg: 'rgba(255,152,0,.12)',  color: '#ff9800' },
+  sending:   { bg: 'rgba(33,150,243,.12)', color: '#2196f3' },
+  manual:    { bg: 'rgba(255,152,0,.12)',  color: '#ff9800' },
   // priority
   urgent: { bg: 'rgba(229,57,53,.12)', color: '#e53935' },
   high:   { bg: 'rgba(255,152,0,.12)',  color: '#ff9800' },
@@ -33,7 +37,7 @@ export default function StatusBadge({ status, label }) {
   const style = COLORS[key] || { bg: 'rgba(108,117,125,.12)', color: '#6c757d' };
   return (
     <span className="admin-badge" style={{ background: style.bg, color: style.color }}>
-      {label ?? status}
+      {label ?? String(status || '').replace(/_/g, ' ')}
     </span>
   );
 }

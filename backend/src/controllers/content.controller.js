@@ -6,6 +6,8 @@ const { isStoreClosed } = require('../middlewares/maintenance');
 const PUBLIC_SETTINGS = [
   'shipping_cost', 'shipping_free_threshold', 'shipping_deadline_h',
   'shipping_deadline_m', 'site_name', 'points_rate', 'maintenance_mode',
+  // Customers encrypt their delivery address to it in the browser
+  'pgp_public_key',
 ];
 
 async function getNews(req, res) {

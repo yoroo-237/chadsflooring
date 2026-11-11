@@ -100,6 +100,11 @@ async function updateOrderStatus(req, res, next) {
     const order = await prisma.order.findUnique({ where: { id } });
     if (!order) return error(res, 'Order not found.', 404);
 
+    // Not paid yet: it can only be cancelled (stock released, anything received refunded)
+    if (order.status === 'awaiting_payment' && status !== 'cancelled') {
+      return error(res, 'This order is still waiting for its crypto payment: it can only be cancelled.', 409);
+    }
+
     if (status === 'cancelled') {
       const result = await cancelOrder(id, null, true);
       return success(res, result);

@@ -48,6 +48,7 @@ export default function AdminOrders() {
         <SearchInput value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search order # or customer…" />
         <select className="admin-filter-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
           <option value="">All statuses</option>
+          <option value="awaiting_payment">Awaiting payment</option>
           <option value="processing">Processing</option>
           <option value="shipped">Shipped</option>
           <option value="delivered">Delivered</option>

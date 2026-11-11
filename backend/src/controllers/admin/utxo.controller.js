@@ -1,6 +1,6 @@
 const prisma = require('../../db');
 const { success, error } = require('../../utils/apiResponse');
-const { deriveUtxoAddress } = require('../../services/crypto.service');
+const { deriveUtxoAddress, depositKey } = require('../../services/crypto.service');
 
 // Build a canonical DER-encoded Bitcoin signature.
 // BlockCypher validates signatures as raw DER (sig[1] == sig.size()-2) and appends
@@ -41,6 +41,8 @@ async function verifyAddress(req, res, next) {
     }
 
     const derivedAddress = await deriveUtxoAddress(deposit.currency, depositId);
+    // Signable = one of the configured seeds (setting or env) gives this address at its index
+    const signable = await depositKey(deposit.currency, deposit).then(() => true).catch(() => false);
     const match = deposit.address === derivedAddress;
 
     return success(res, {
@@ -49,6 +51,7 @@ async function verifyAddress(req, res, next) {
       storedAddress:   deposit.address,
       derivedAddress,
       match,
+      signable,
       user:            deposit.user,
     });
   } catch (e) { next(e); }

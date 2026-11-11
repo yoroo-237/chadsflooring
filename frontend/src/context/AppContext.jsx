@@ -13,6 +13,8 @@ function normalizeProduct(p) {
     brandSlug: p.brand?.slug || p.brandSlug || '',
     category: String(p.category?.id || p.categoryId || p.category || ''),
     categoryName: p.category?.name || p.categoryName || '',
+    // Number of variants, shown on the card ("3 options")
+    options: (p.variants?.length || p.optionsCount || 0) > 1 ? (p.variants?.length || p.optionsCount) : (p.options ?? null),
   };
 }
 
@@ -113,15 +115,21 @@ export function AppProvider({ children }) {
     showToast(`${product.name} added to cart`, 'success');
   }, [showToast]);
 
-  const placeOrder = useCallback(async ({ payCurrency, telegram } = {}) => {
-    const grouped = cartItems.reduce((acc, item) => {
-      const id = item.id;
-      if (!acc[id]) acc[id] = { productId: id, quantity: 0 };
-      acc[id].quantity++;
-      return acc;
-    }, {});
-    const items = Object.values(grouped);
-    const body = { items, ...(payCurrency ? { payCurrency } : {}), ...(telegram ? { telegram } : {}) };
+  // One line per product and variant
+  const cartLines = useCallback(() => Object.values(cartItems.reduce((acc, item) => {
+    const key = `${item.id}:${item.optionId || ''}`;
+    if (!acc[key]) acc[key] = { productId: item.id, quantity: 0, ...(item.optionId ? { optionId: item.optionId } : {}) };
+    acc[key].quantity++;
+    return acc;
+  }, {})), [cartItems]);
+
+  // `delivery` (a US address or { pgp }) and `refund` ({ currency, address }) are optional
+  const placeOrder = useCallback(async ({ payCurrency, telegram, delivery, refund } = {}) => {
+    const body = {
+      items: cartLines(),
+      ...(payCurrency ? { payCurrency } : {}), ...(telegram ? { telegram } : {}),
+      ...(delivery ? { delivery } : {}), ...(refund ? { refund } : {}),
+    };
     const data = await api.post('/orders', body);
     const order = data.order || data;
     setOrders(prev => [order, ...prev]);
@@ -131,7 +139,18 @@ export function AppProvider({ children }) {
     showToast('Order placed successfully!', 'success');
     // The paid invoice also went to the shop on Telegram; the confirmation shows it
     return { ...order, invoice: data.invoice };
-  }, [cartItems, showToast, applyWallet]);
+  }, [cartLines, showToast, applyWallet]);
+
+  // Pay the order itself in crypto: it waits for its payment on its own address (30 min)
+  const payOrder = useCallback(async ({ coin, telegram, delivery, refund }) => {
+    const data = await api.post('/orders/pay', {
+      items: cartLines(), coin,
+      ...(telegram ? { telegram } : {}), ...(delivery ? { delivery } : {}), ...(refund ? { refund } : {}),
+    });
+    setOrders(prev => [data.order, ...prev]);
+    setCartItems([]);
+    return data;
+  }, [cartLines]);
 
   const refreshBalance = useCallback(async () => {
     const data = await api.get('/wallet/balance').catch(() => null);
@@ -192,7 +211,7 @@ export function AppProvider({ children }) {
       wishedIds, toggleWish,
       theme, setTheme,
       toasts, showToast,
-      orders, setOrders, placeOrder,
+      orders, setOrders, placeOrder, payOrder,
       search, setSearch,
       user, setUser,
       profile, setProfile: (p) => setUser(u => ({ ...u, ...p })),

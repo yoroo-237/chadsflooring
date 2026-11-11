@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { Link } from 'react-router-dom';
 import StarRating from './StarRating';
 
 function CloseIcon() {
@@ -28,6 +29,8 @@ export default function QuickAddModal() {
   const stockLabel = stock >= 250 ? '250+' : stock;
 
   const add = () => { addManyToCart(p, qty); closeQuickAdd(); };
+  // Sold by variant: the variant is chosen on the product page
+  const hasVariants = (p.options || 0) > 1;
 
   return (
     <div className="qadd-overlay" onClick={closeQuickAdd}>
@@ -50,6 +53,9 @@ export default function QuickAddModal() {
             </div>
           </div>
 
+          {hasVariants ? (
+            <Link className="qadd-cta" to={`/product/${p.id}`} onClick={closeQuickAdd}>Choose one of {p.options} options</Link>
+          ) : (<>
           <div className="qadd-amount-label">Amount ({stockLabel} in stock)</div>
           <div className="qadd-stepper">
             <button className="qadd-step-btn" onClick={() => setQty(q => Math.max(1, q - 1))} aria-label="Decrease"><MinusIcon /></button>
@@ -60,6 +66,7 @@ export default function QuickAddModal() {
           <button className="qadd-cta" onClick={add}>
             <PlusIcon /> Add To Cart
           </button>
+          </>)}
         </div>
       </div>
     </div>
