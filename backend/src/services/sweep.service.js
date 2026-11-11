@@ -216,10 +216,15 @@ async function sweepUtxo(kind, currency, userId, { usd = null } = {}) {
       const res = await sweepDepositUtxo(currency, dep, destination, keep);
 
       if (res.empty) {
-        // Deposits credited before commissions existed and already emptied: settle them
-        // so they stop being queried on every sweep.
-        if (kind === 'shop' && toSats(dep.commissionAmount) === 0) await markSwept('shop', dep, 'empty');
-        skipped.push({ address: dep.address, reason: 'empty' });
+        if (res.finalBalance > 0) {
+          // Our previous sweep or refund returned change that is not confirmed yet
+          skipped.push({ address: dep.address, reason: 'waiting for a previous transaction from this address to confirm: sweep again after it does' });
+        } else {
+          // Really empty (emptied by an older sweep that was not recorded): both sides are
+          // settled, so the deposit stops showing as owed and being read on every sweep
+          await markSwept(kind, dep, 'empty', true);
+          skipped.push({ address: dep.address, reason: 'empty (settled)' });
+        }
         continue;
       }
       if (res.skipped) { skipped.push({ address: dep.address, reason: res.skipped }); continue; }

@@ -127,8 +127,11 @@ async function listUtxos(currency, address) {
   const { data } = await axios.get(
     `https://api.blockcypher.com/v1/${CHAIN[currency]}/addrs/${address}?unspentOnly=true&includeScript=true&token=${TOKEN}`,
     { timeout: 10000 });
-  // Confirmed outputs only: an unconfirmed one may still be replaced
-  return (data.txrefs || []).filter(u => !u.spent);
+  // Confirmed outputs only: an unconfirmed one may still be replaced. `finalBalance` counts
+  // unconfirmed ones too: 0 means the address is really empty.
+  const utxos = (data.txrefs || []).filter(u => !u.spent);
+  utxos.finalBalance = data.final_balance ?? data.balance ?? 0;
+  return utxos;
 }
 
 // Builds, signs and broadcasts a P2PKH transaction spending every UTXO of a deposit
@@ -165,7 +168,8 @@ async function sweepDepositUtxo(currency, dep, destination, keep) {
   const key = await depositKey(currency, dep);
   const utxos = await listUtxos(currency, dep.address);
   const total = utxos.reduce((s, u) => s + u.value, 0);
-  if (total === 0) return { empty: true };
+  // Nothing confirmed to spend: really empty, or our previous transaction (its change) is not confirmed yet
+  if (total === 0) return { empty: true, finalBalance: utxos.finalBalance };
 
   const dust = DUST[currency];
   let settlesOther = false;
