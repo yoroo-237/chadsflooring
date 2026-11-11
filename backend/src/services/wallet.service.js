@@ -128,6 +128,7 @@ async function createDeposit(userId, currency, { orderId = null, minutes = null,
 //    of an order's deposit, is credited on its own by receivePayment.
 // `txHash`: the transaction it comes from, counted once whatever reports it (webhook,
 // the customer's check, a sweep's check). An admin entry has no hash.
+// No minimum and no maximum: every payment received is credited.
 async function confirmDepositManually(depositId, cryptoAmount, adminId, txHash = null) {
   const gross = balanceService.round8(parseFloat(cryptoAmount));
   if (!(gross > 0)) throw Object.assign(new Error('Received amount must be positive.'), { status: 422 });
@@ -146,19 +147,9 @@ async function confirmDepositManually(depositId, cryptoAmount, adminId, txHash =
     return receivePayment(deposit, gross, { txHash, adminId });
   }
 
-  // Price is informative only (USD shown on the transaction, minimum check):
-  // the credit itself is in crypto, so a missing price never blocks a deposit.
+  // Price is informative only (USD shown on the transaction): the credit itself is in
+  // crypto, so a missing price never blocks a deposit.
   const price = await getCachedUsdPrice(deposit.currency);
-  const grossUsd = price ? balanceService.round2(gross * price) : 0;
-
-  const minSetting = await prisma.siteSetting.findUnique({ where: { key: 'min_deposit' } });
-  const minDeposit = parseFloat(minSetting?.value) || 0;
-  if (minDeposit > 0 && price && grossUsd < minDeposit) {
-    throw Object.assign(
-      new Error(`Deposit of $${grossUsd.toFixed(2)} is below the minimum of $${minDeposit.toFixed(2)}.`),
-      { status: 422 }
-    );
-  }
 
   const pct = await balanceService.getCommissionPct();
   const { commission, net } = balanceService.splitDeposit(gross, pct);
@@ -308,6 +299,8 @@ async function syncDeposit(depositOrId) {
   }
 
   let credited = 0;
+  const failed = []; // payments seen on the chain but refused, with the reason (shown to the admin)
+
   for (const p of payments) {
     if (seen.includes(p.hash)) continue;
     try {
@@ -315,11 +308,12 @@ async function syncDeposit(depositOrId) {
       if (r && !r.duplicate && !r.nothingNew) credited++;
     } catch (e) {
       console.warn(`[Deposits] payment ${p.hash} on deposit #${dep.id} not credited:`, e.message);
+      failed.push({ hash: p.hash, amount: p.amount, reason: e.message });
     }
     dep = await prisma.deposit.findUnique({ where: { id: dep.id } });
     seen = Array.isArray(dep.txSeen) ? dep.txSeen : [];
   }
-  return { credited, pending };
+  return { credited, pending, found: payments.length, failed };
 }
 
 async function getTransactions(userId, { type, page = 1, limit = 20 } = {}) {

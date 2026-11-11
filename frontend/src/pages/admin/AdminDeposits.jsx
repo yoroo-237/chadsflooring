@@ -207,15 +207,14 @@ export default function AdminDeposits() {
 
   // Rereads the address on the blockchain and credits every payment not counted yet
   const [syncing, setSyncing] = useState(null);
+  const [syncResult, setSyncResult] = useState(null); // { deposit, data } or { deposit, error }
   const doSync = async d => {
-    setSyncing(d.id); setErr(null);
+    setSyncing(d.id);
     try {
-      const r = await adminFetch(`/admin/deposits/${d.id}/sync`, { method: 'POST' });
-      window.alert(r.credited > 0
-        ? `Deposit #${d.id}: ${r.credited} payment(s) credited, ${r.newlyReceived} ${r.currency} (total received ${r.amountReceived} ${r.currency}).`
-        : r.pending ? `Deposit #${d.id}: a payment is still waiting for its confirmation.` : `Deposit #${d.id}: no new payment on this address.`);
+      const data = await adminFetch(`/admin/deposits/${d.id}/sync`, { method: 'POST' });
+      setSyncResult({ deposit: d, data });
       load();
-    } catch (e) { setErr(e.message); }
+    } catch (e) { setSyncResult({ deposit: d, error: e.message }); }
     finally { setSyncing(null); }
   };
 
@@ -413,6 +412,43 @@ export default function AdminDeposits() {
         </table>
       </div>
       <Pagination page={page} totalPages={Math.ceil(total / limit)} onChange={setPage} />
+
+      {/* Check chain result */}
+      {syncResult && (() => {
+        const { deposit: dd, data: r, error: syncErr } = syncResult;
+        return (
+          <div className="admin-modal-overlay" onClick={e => { if (e.target === e.currentTarget) setSyncResult(null); }}>
+            <div className="admin-modal">
+              <div className="admin-modal-title">Check chain: deposit #{dd.id} ({dd.currency})</div>
+              {syncErr ? (
+                <div style={{ color: '#e53935', fontSize: 13, marginBottom: 12 }}>{syncErr}</div>
+              ) : (
+                <div style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 12 }}>
+                  <div>Payments found on the address: <strong>{r.found}</strong></div>
+                  <div>Credited now: <strong style={{ color: r.credited > 0 ? '#2e7d32' : 'inherit' }}>{r.credited}</strong>{r.newlyReceived > 0 && ` (${r.newlyReceived} ${r.currency})`}</div>
+                  <div>Total received on this deposit: <strong>{r.amountReceived} {r.currency}</strong></div>
+                  <div>Status: <StatusBadge status={r.status} /></div>
+                  {r.pending && <div style={{ color: '#e65100' }}>A payment is still waiting for its first confirmation.</div>}
+                  {r.failed?.length > 0 && (
+                    <div style={{ marginTop: 10, background: 'rgba(229,57,53,.08)', border: '1px solid rgba(229,57,53,.25)', borderRadius: 8, padding: '8px 12px' }}>
+                      <strong style={{ color: '#c62828' }}>Not credited:</strong>
+                      {r.failed.map(f => (
+                        <div key={f.hash} style={{ fontSize: 12, marginTop: 4 }}>
+                          {f.amount} {r.currency} <span style={{ color: '#6c757d', fontFamily: 'monospace' }}>({f.hash.slice(0, 12)}…)</span>: {f.reason}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {r.found === 0 && !r.pending && <div style={{ color: '#6c757d' }}>No confirmed payment on this address yet.</div>}
+                </div>
+              )}
+              <div className="admin-modal-actions">
+                <button type="button" className="admin-btn admin-btn-secondary" onClick={() => setSyncResult(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Confirm modal */}
       {confirmModal && (

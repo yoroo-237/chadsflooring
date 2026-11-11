@@ -66,19 +66,7 @@ async function confirmDeposit(req, res, next) {
       return error(res, 'amount (crypto received) must be a positive number.', 400);
     }
 
-    // Guard against unit mix-ups (USD typed in the crypto field): a large USD value
-    // needs an explicit confirmLarge flag.
-    const LARGE_USD = 5000;
-    if (req.body.confirmLarge !== true && !converted) {
-      const d = await prisma.deposit.findUnique({ where: { id } });
-      const price = d ? await getCurrencyUsdPrice(d.currency) : null;
-      if (price && amt * price > LARGE_USD) {
-        return error(res,
-          `${amt} ${d.currency} is worth about $${(amt * price).toFixed(2)}. The amount field is in ${d.currency}, not USD. Check it before confirming.`,
-          422);
-      }
-    }
-
+    // No minimum and no maximum: the form shows the USD / crypto conversion before confirming
     const result = await confirmDepositManually(id, amt, req.user.id);
     return success(res, { ...result, converted });
   } catch (e) { next(e); }
@@ -205,10 +193,10 @@ async function syncOne(req, res, next) {
     if (!d) return error(res, 'Deposit not found.', 404);
     if (d.currency === 'XMR') return error(res, 'XMR deposits share one wallet address: confirm them by hand.', 422);
     const before = parseFloat(d.amountReceived);
-    const { credited, pending } = await syncDeposit(d);
+    const { credited, pending, found, failed } = await syncDeposit(d);
     const after = await prisma.deposit.findUnique({ where: { id } });
     return success(res, {
-      credited, pending, status: after.status,
+      credited, pending, found, failed, status: after.status,
       amountReceived: parseFloat(after.amountReceived),
       newlyReceived: Math.round((parseFloat(after.amountReceived) - before) * 1e8) / 1e8,
       currency: after.currency,

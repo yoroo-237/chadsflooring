@@ -265,18 +265,6 @@ export default function AdminSettings() {
                 Crypto deposit addresses expire after this many hours.
               </div>
             </div>
-            <div className="admin-form-group">
-              <label className="admin-label">Minimum Deposit ($)</label>
-              <input className="admin-input" type="number" min="0" step="0.01"
-                value={s.min_deposit || ''} onChange={e => set('min_deposit', e.target.value)}
-                placeholder="10.00" style={{ maxWidth: 160 }} />
-            </div>
-            <div className="admin-form-group">
-              <label className="admin-label">Maximum Deposit ($)</label>
-              <input className="admin-input" type="number" min="0" step="0.01"
-                value={s.max_deposit || ''} onChange={e => set('max_deposit', e.target.value)}
-                placeholder="5000.00" style={{ maxWidth: 160 }} />
-            </div>
           </Section>
         )}
 
