@@ -99,7 +99,7 @@ export default function AdminDeposits() {
 
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState(null); // { id, currency }
-  const [confirmForm, setConfirmForm]   = useState({ amount: '', note: '', unit: 'usd' });
+  const [confirmForm, setConfirmForm]   = useState({ amount: '', note: '', unit: 'usd', already: false });
   const [confirmPrice, setConfirmPrice] = useState(null); // live USD price of the deposit's coin
   const [confirming, setConfirming]     = useState(false);
   const [confirmErr, setConfirmErr]     = useState(null);
@@ -148,8 +148,9 @@ export default function AdminDeposits() {
       await adminFetch(`/admin/deposits/${confirmModal.id}/confirm`, {
         method: 'PATCH',
         body: {
-          ...(confirmForm.unit === 'usd' ? { usdAmount: parseFloat(confirmForm.amount) } : { amount: parseFloat(confirmForm.amount) }),
+          ...(confirmForm.amount === '' ? {} : confirmForm.unit === 'usd' ? { usdAmount: parseFloat(confirmForm.amount) } : { amount: parseFloat(confirmForm.amount) }),
           note: confirmForm.note || undefined,
+          ...(confirmForm.already ? { alreadyCredited: true } : {}),
         },
       });
       setConfirmModal(null);
@@ -231,7 +232,7 @@ export default function AdminDeposits() {
   };
 
   const openConfirm = d => {
-    setConfirmForm({ amount: '', note: '', unit: 'usd' });
+    setConfirmForm({ amount: '', note: '', unit: 'usd', already: false });
     setConfirmErr(null);
     setConfirmPrice(null);
     setConfirmModal({ id: d.id, currency: d.currency });
@@ -465,7 +466,11 @@ export default function AdminDeposits() {
             )}
             <form onSubmit={doConfirm}>
               <div className="admin-form-group">
-                <label className="admin-label">Amount received *</label>
+                <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, marginBottom: 12, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={confirmForm.already} onChange={e => setConfirmForm(f => ({ ...f, already: e.target.checked }))} style={{ marginTop: 3 }} />
+                  <span><strong>Already credited to the customer</strong> (balance adjusted by hand): only record this deposit as paid, with the amount found on the blockchain. The customer's balance does not change.</span>
+                </label>
+                <label className="admin-label">Amount received {confirmForm.already && confirmModal.currency !== 'XMR' ? '(read from the blockchain if empty)' : '*'}</label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
                     className="admin-input"
@@ -475,7 +480,7 @@ export default function AdminDeposits() {
                     value={confirmForm.amount}
                     onChange={e => setConfirmForm(f => ({ ...f, amount: e.target.value }))}
                     placeholder={confirmForm.unit === 'usd' ? '0.00' : '0.00000000'}
-                    required
+                    required={!(confirmForm.already && confirmModal.currency !== 'XMR')}
                     autoFocus
                   />
                   <select className="admin-select" style={{ width: 110 }} value={confirmForm.unit}
@@ -507,7 +512,7 @@ export default function AdminDeposits() {
               <div className="admin-modal-actions">
                 <button type="button" className="admin-btn admin-btn-secondary" onClick={() => setConfirmModal(null)}>Cancel</button>
                 <button type="submit" className="admin-btn admin-btn-success" disabled={confirming}>
-                  {confirming ? 'Confirming…' : 'Confirm & Credit'}
+                  {confirming ? 'Confirming…' : confirmForm.already ? 'Record as paid' : 'Confirm & Credit'}
                 </button>
               </div>
             </form>

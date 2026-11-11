@@ -9,32 +9,48 @@ const COINGECKO_ID = {
   XMR:  'monero',
 };
 
-const COINCAP_ID = { bitcoin: 'bitcoin', litecoin: 'litecoin', dogecoin: 'dogecoin', ethereum: 'ethereum', monero: 'monero' };
+const SYMBOL = Object.fromEntries(Object.entries(COINGECKO_ID).map(([sym, id]) => [id, sym]));
+// Kraken's pair names (XBT is Bitcoin, XDG Dogecoin)
+const KRAKEN_PAIR = { BTC: 'XBTUSD', LTC: 'LTCUSD', DOGE: 'XDGUSD', ETH: 'ETHUSD', XMR: 'XMRUSD' };
 
+// Three keyless sources, tried in turn: CoinGecko often throttles servers that share an IP
+// (Railway), CoinCap's free API is gone, Coinbase and Kraken answer reliably.
 async function getCoinUsdPrice(coinId) {
-  // Primary: CoinGecko
-  try {
-    const res  = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`, { signal: AbortSignal.timeout(6000) });
-    const data = await res.json();
-    const price = data[coinId]?.usd;
-    if (price) return price;
-  } catch { /* fall through to backup */ }
-
-  // Fallback: CoinCap (no API key required)
-  try {
-    const capId = COINCAP_ID[coinId] || coinId;
-    const res  = await fetch(`https://api.coincap.io/v2/assets/${capId}`, { signal: AbortSignal.timeout(6000) });
-    const data = await res.json();
-    const price = parseFloat(data?.data?.priceUsd);
-    if (price > 0) return price;
-  } catch { /* both failed */ }
-
+  const sym = SYMBOL[coinId];
+  const sources = [
+    async () => {
+      const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`, { signal: AbortSignal.timeout(6000) });
+      return (await r.json())?.[coinId]?.usd;
+    },
+    async () => {
+      if (!sym || sym === 'XMR') return null; // not listed on Coinbase
+      const r = await fetch(`https://api.coinbase.com/v2/prices/${sym}-USD/spot`, { signal: AbortSignal.timeout(6000) });
+      return parseFloat((await r.json())?.data?.amount);
+    },
+    async () => {
+      if (!KRAKEN_PAIR[sym]) return null;
+      const r = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${KRAKEN_PAIR[sym]}`, { signal: AbortSignal.timeout(6000) });
+      const result = (await r.json())?.result;
+      return result ? parseFloat(Object.values(result)[0]?.c?.[0]) : null;
+    },
+  ];
+  for (const source of sources) {
+    try {
+      const price = Number(await source());
+      if (price > 0) return price;
+    } catch { /* next source */ }
+  }
   return null;
 }
 
-function getCurrencyUsdPrice(currency) {
+function fetchCurrencyUsdPrice(currency) {
   const id = COINGECKO_ID[currency];
   return id ? getCoinUsdPrice(id) : Promise.resolve(null);
+}
+
+// The live price, or the last one known if every source is down right now
+function getCurrencyUsdPrice(currency) {
+  return getCachedUsdPrice(currency);
 }
 
 // Cached prices for valuing balances. Wallet views poll often, so live prices are
@@ -46,7 +62,7 @@ const priceCache = {}; // currency -> { price, at }
 async function getCachedUsdPrice(currency) {
   const hit = priceCache[currency];
   if (hit && Date.now() - hit.at < PRICE_TTL_MS) return hit.price;
-  const price = await getCurrencyUsdPrice(currency);
+  const price = await fetchCurrencyUsdPrice(currency);
   if (price) {
     priceCache[currency] = { price, at: Date.now() };
     return price;

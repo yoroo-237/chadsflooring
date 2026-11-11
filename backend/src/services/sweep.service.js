@@ -104,6 +104,28 @@ async function addressBalanceSats(currency, address) {
   return data.balance || 0;
 }
 
+// Deposits not validated yet (awaiting, partial, or expired in the last 30 days) whose address
+// already received payments: credited to the customer first, so a sweep never leaves them out
+// (and never takes money that was not credited). Returns how many deposits got a credit.
+async function creditUnvalidated(currency) {
+  const { syncDeposit } = require('./wallet.service');
+  const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+  const open = await prisma.deposit.findMany({
+    where: {
+      currency,
+      address: { not: 'pending' },
+      OR: [{ status: { in: ['awaiting', 'partial'] } }, { status: 'expired', createdAt: { gt: since } }],
+    },
+    orderBy: { id: 'asc' },
+  });
+  let n = 0;
+  for (const d of open) {
+    try { if ((await syncDeposit(d)).credited > 0) n++; }
+    catch (e) { console.warn(`[Sweep] could not read deposit #${d.id}:`, e.message); }
+  }
+  return n;
+}
+
 // Credits the payments made to the address since it was last read, then reloads it
 async function freshDeposit(dep) {
   const { syncDeposit } = require('./wallet.service');
@@ -168,6 +190,7 @@ async function sweepUtxo(kind, currency, userId, { usd = null } = {}) {
   const budget = await budgetFor(currency, usd);
   let left = budget ? toSats(budget.coins) : Infinity; // sats still to sweep
 
+  const creditedFirst = await creditUnvalidated(currency);
   const deposits = await prisma.deposit.findMany({ where: eligibleWhere(kind, currency), orderBy: { id: 'asc' } });
   const held = kind === 'shop' ? await depositsWithOpenRefunds(deposits.map(d => d.id)) : new Set();
 
@@ -215,7 +238,7 @@ async function sweepUtxo(kind, currency, userId, { usd = null } = {}) {
   }
 
   return {
-    kind, currency, swept: swept.length, results: swept, skipped, total: fmt8(total),
+    kind, currency, swept: swept.length, results: swept, skipped, total: fmt8(total), creditedFirst,
     ...(budget ? { requestedUsd: budget.usd, requested: fmt8(toSats(budget.coins)), price: budget.price, totalUsd: Math.round(total / 1e8 * budget.price * 100) / 100 } : {}),
   };
 }
@@ -232,6 +255,7 @@ async function sweepEth(kind, userId, { usd = null } = {}) {
 
   const budget = await budgetFor('ETH', usd);
   let left = budget ? toWei(budget.coins) : null; // wei still to sweep (null = everything)
+  const creditedFirst = await creditUnvalidated('ETH');
 
   const deposits = await prisma.deposit.findMany({
     where: { ...eligibleWhere(kind, 'ETH'), ethIndex: { not: null } },
@@ -292,7 +316,7 @@ async function sweepEth(kind, userId, { usd = null } = {}) {
   }
 
   return {
-    kind, currency: 'ETH', swept: swept.length, results: swept, skipped, total: ethers.formatEther(total),
+    kind, currency: 'ETH', swept: swept.length, results: swept, skipped, total: ethers.formatEther(total), creditedFirst,
     ...(budget ? { requestedUsd: budget.usd, requested: String(budget.coins), price: budget.price, totalUsd: Math.round(Number(ethers.formatEther(total)) * budget.price * 100) / 100 } : {}),
   };
 }
