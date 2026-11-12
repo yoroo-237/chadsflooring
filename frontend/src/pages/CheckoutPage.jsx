@@ -254,7 +254,7 @@ export default function CheckoutPage() {
                   </div>
                   <p className="checkout-rate-note">
                     Next you get the order’s own {coin || 'crypto'} address and the exact amount to send, priced now.
-                    {depositFeePct > 0 && <> It includes the {depositFeePct}% deposit fee.</>}
+                    {depositFeePct > 0 && <> It includes the {depositFeePct/10}% deposit fee.</>}
                     {' '}Pay within {payWindow} minutes, or the order is cancelled and anything received is refunded.
                     {coin === 'XMR' && ' Monero payments are checked by hand.'}
                   </p>

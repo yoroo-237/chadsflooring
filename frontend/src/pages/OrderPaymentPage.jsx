@@ -151,7 +151,7 @@ export default function OrderPaymentPage() {
             )}
 
             <p className="checkout-rate-note">
-              Send exactly this amount, in {currency} only. It is priced for this order and includes the {data.commissionPct}% deposit fee.
+              Send exactly this amount, in {currency} only. It is priced for this order and includes the {data.commissionPct/10}% deposit fee.
               {' '}Several payments add up. Anything sent after the time runs out, or above the amount, is refunded{order.refundAddress ? ` to ${order.refundAddress.slice(0, 10)}…` : ' to your wallet balance'}.
             </p>
 

@@ -314,7 +314,7 @@ export default function WalletPage() {
               <p className="credits-load-subtitle">
                 Your balance holds the crypto you send and its USD value follows the live market price.
                 {depositFeePct != null && depositFeePct > 0 && (
-                  <> A <strong>{depositFeePct}% deposit fee</strong> is deducted from each deposit when it confirms.</>
+                  <> A <strong>{depositFeePct/10}% deposit fee</strong> is deducted from each deposit when it confirms.</>
                 )}
               </p>
 
@@ -481,9 +481,9 @@ export default function WalletPage() {
 
             {depositFeePct != null && (
               <div className="deposit-fee-box">
-                <strong>Deposit fee: {depositFeePct}%</strong>
+                <strong>Deposit fee: {depositFeePct/10}%</strong>
                 <span>
-                  Example: send 1.00 {selectedCurrency} → {(1 - depositFeePct / 100).toFixed(4).replace(/0+$/, '').replace(/\.$/, '')} {selectedCurrency} is added to your balance.
+                  Example: send 1.00 {selectedCurrency} → {(1 - depositFeePct / 1000).toFixed(4).replace(/0+$/, '').replace(/\.$/, '')} {selectedCurrency} is added to your balance.
                 </span>
               </div>
             )}
