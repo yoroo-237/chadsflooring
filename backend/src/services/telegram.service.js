@@ -46,10 +46,13 @@ async function sendOrderInvoice({ orderNumber, lines, shipping, total, payments,
     const telegram = formatContact(user?.telegramHandle);
     const paid = (payments || []).map(p => `${p.amount} ${p.currency}`).join(' + ') || 'wallet';
     const items = lines.map(l => `• ${l.quantity} × ${l.name} — ${money(l.total)}`);
+    const subtotal = lines.reduce((s, l) => s + Number(l.total || 0), 0);
+    const shippingLine = shipTo ? `Shipping: ${Number(shipping) > 0 ? money(shipping) : 'Free'}` : 'Shipping: none (no delivery)';
     const text = [
       `PAID ORDER ${orderNumber}`,
       ...items,
-      shipTo ? `Shipping: ${Number(shipping) > 0 ? money(shipping) : 'Free'}` : 'No delivery: arranged on Telegram',
+      `Subtotal: ${money(subtotal)}`,
+      shippingLine,
       `Total: ${money(total)} — paid ${paid}`,
       user?.username ? `Account: ${user.username}` : null,
       telegram ? `Telegram: ${telegram}` : null,
@@ -58,6 +61,8 @@ async function sendOrderInvoice({ orderNumber, lines, shipping, total, payments,
     const delivered = await sendTelegram([
       `✅ <b>Paid order ${escapeHtml(orderNumber)}</b> (${escapeHtml(via)})`,
       ...items.map(escapeHtml),
+      `Subtotal: ${money(subtotal)}`,
+      `🚚 ${escapeHtml(shippingLine)}`,
       `<b>Total: ${money(total)}</b> · paid ${escapeHtml(paid)}`,
       user?.username ? `👤 ${escapeHtml(user.username)}` : null,
       telegram ? `✈️ Telegram: ${escapeHtml(telegram)}` : '✈️ Telegram: not on profile',

@@ -179,6 +179,14 @@ export default function AdminOrderDetail() {
                 ))
               }
               <tr>
+                <td colSpan={4} style={{ textAlign: 'right' }}>Subtotal</td>
+                <td>{fmt(order.subtotal)}</td>
+              </tr>
+              <tr>
+                <td colSpan={4} style={{ textAlign: 'right' }}>Shipping</td>
+                <td>{!order.shipAddress ? 'None' : Number(order.shippingCost) > 0 ? fmt(order.shippingCost) : 'Free'}</td>
+              </tr>
+              <tr>
                 <td colSpan={4} style={{ textAlign: 'right', fontWeight: 700 }}>Total</td>
                 <td style={{ fontWeight: 700 }}>{fmt(order.totalAmount)}</td>
               </tr>
