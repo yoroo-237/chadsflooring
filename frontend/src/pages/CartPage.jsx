@@ -57,7 +57,7 @@ export default function CartPage() {
   const stashItems = products.filter(p => wishedIds.has(p.id));
 
   const shippingCost      = Number(settings?.shipping_cost            || 16.99);
-  const freeThreshold     = Number(settings?.shipping_free_threshold  || 75);
+  const freeThreshold     = Number(settings?.shipping_free_threshold  || 3000);
   const subtotal = cartItems.reduce((s, it) => s + unit(it), 0);
   const shipping = cartItems.length
     ? (freeThreshold > 0 && subtotal >= freeThreshold ? 0 : shippingCost)

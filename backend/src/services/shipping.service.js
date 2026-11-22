@@ -7,7 +7,7 @@ async function calculateShipping(subtotal) {
   const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
 
   const cost      = parseFloat(map.shipping_cost)            || 16.99;
-  const threshold = parseFloat(map.shipping_free_threshold)  || 75.00;
+  const threshold = parseFloat(map.shipping_free_threshold)  || 3000.00;
 
   const shippingCost = (threshold > 0 && parseFloat(subtotal) >= threshold) ? 0 : cost;
   return { shippingCost, isFree: shippingCost === 0 };

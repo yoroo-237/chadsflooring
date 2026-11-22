@@ -28,7 +28,7 @@ export default function ShippingPolicyPage() {
                 <span>Express Shipping</span><span>1–2 business days</span><span>$14.99</span>
               </div>
               <div className="policy-table-row">
-                <span>Free Shipping</span><span>5–10 business days</span><span>Free (orders $75+)</span>
+                <span>Free Shipping</span><span>5–10 business days</span><span>Free (orders $3,000+)</span>
               </div>
               <div className="policy-table-row">
                 <span>International</span><span>7–21 business days</span><span>Calculated at checkout</span>
@@ -38,7 +38,7 @@ export default function ShippingPolicyPage() {
 
           <section className="policy-section">
             <h2>Free Shipping</h2>
-            <p>We offer free standard shipping on all domestic orders over <strong>$75</strong>. Free shipping is automatically applied at checkout when your cart total meets the minimum requirement.</p>
+            <p>We offer free standard shipping on all domestic orders over <strong>$3,000</strong>. Free shipping is automatically applied at checkout when your cart total meets the minimum requirement.</p>
           </section>
 
           <section className="policy-section">

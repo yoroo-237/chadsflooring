@@ -35,7 +35,7 @@ const CDN = 'https://chadsflooring.bz/uploads/products/';
 
 const SETTINGS = [
   { key: 'shipping_cost',           value: '16.99',         type: 'number'  },
-  { key: 'shipping_free_threshold', value: '75.00',         type: 'number'  },
+  { key: 'shipping_free_threshold', value: '3000.00',         type: 'number'  },
   { key: 'shipping_deadline_h',     value: '22',            type: 'number'  },
   { key: 'shipping_deadline_m',     value: '39',            type: 'number'  },
   { key: 'points_rate',             value: '0.5',           type: 'number'  },

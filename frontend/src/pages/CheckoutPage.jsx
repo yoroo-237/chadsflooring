@@ -91,7 +91,7 @@ export default function CheckoutPage() {
   }, [method, coin, user?.btcRefundAddress, user?.xmrRefundAddress]);
 
   const shippingCost  = Number(settings?.shipping_cost           || 16.99);
-  const freeThreshold = Number(settings?.shipping_free_threshold || 75);
+  const freeThreshold = Number(settings?.shipping_free_threshold || 3000);
 
   const subtotal = cartItems.reduce((sum, item) => sum + (parseFloat(String(item.price).replace(/[$P]/g, '')) || 0), 0);
   const shipIfDelivered = (freeThreshold > 0 && subtotal >= freeThreshold) ? 0 : shippingCost;
